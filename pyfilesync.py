@@ -54,7 +54,7 @@ def load_config(config_file: str) -> dict:
 
     return result
 
-def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_target: bool = False, verbose: bool = False):
+def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_target: bool = False, verbose: bool = False) -> set:
     """synchronize two folders in mirror mode (left to right only, left files remain unchanged)
 
     :param source: path to source folder
@@ -71,29 +71,33 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     log(("Synchronizing" if action=='sync' else "Comparing") + " <"+source+"> to <"+target+">...")
 
     if not os.path.exists(source):
-         log_error("Source folder <"+source+"> does not exist", True)
+         log_error("Source folder <"+source+"> does not exist")
          return
 
     if not os.path.exists(target):
         if create_target:
             os.makedirs(target)
         else:
-            log_error("Target folder <"+target+"> does not exist", True)
+            log_error("Target folder <"+target+"> does not exist")
             return
     
     # preparing the list of include regex patterns
     includes_regex = pair.get('include_regex', []) + globalconfig.include_regex
     # -> we use include patterns (if any) by converting them to regex
     includes=pair.get('include', [])
-    includes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in includes])])
+    if includes:
+        includes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in includes])])
     
     # preparing the list of exclude regex patterns
     excludes_regex = pair.get('exclude_regex', []) + globalconfig.exclude_regex
     # -> we use exclude patterns (if any) by converting them to regex
     excludes=pair.get('exclude', [])
-    excludes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in excludes])])
+    if excludes:
+        excludes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in excludes])])
 
+    errors = set()
     cmpres = compare_dirs(source, target, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
+    errors.update(cmpres.errors)
     
     if action=='compare' or verbose:
         log("  Comparison results:")
@@ -120,13 +124,10 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
                 log("   | ."+os.path.sep+f)
             log('')
 
-    if len(cmpres.errors)>0:
-        log("")
-        for error in cmpres.errors:
-            log_error("  "+str(error[1])+" : "+str(error[0]))
-
     if action=='sync':
-        sync_dirs(source, target, cmpres, verbose)
+        errors.update( sync_dirs(source, target, cmpres, verbose) )
+
+    return errors
 
     
 def sync_folders_pairs(config: dict, action: str, create_target: bool = False, verbose: bool = False):
@@ -142,9 +143,18 @@ def sync_folders_pairs(config: dict, action: str, create_target: bool = False, v
     else:
         globalconfig = GlobalConfig({})
     pairs:list = config.get('pairs', [])
+    errors = set()
     for pair in pairs:
-        sync_folder_pair(pair, globalconfig, action, create_target, verbose)
+        errors.update(sync_folder_pair(pair, globalconfig, action, create_target, verbose))
         log("")
+
+    if errors:
+        log_error("%d errors encountered during comparison/synchronization :" % len(errors))
+        for error in errors:
+            log_error("  "+str(error[1])+" : "+str(error[0]))
+    else:
+        log("No error encountered !")
+    log('All jobs done.')
         
 
 def main(argv):

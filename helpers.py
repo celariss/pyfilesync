@@ -61,12 +61,11 @@ def copy_dir_or_file(src:str, dest:str):
 
 class CmpData(object):
     """compare_dirs() result data class"""
-    def __init__(self, left_only, right_only, equal, different, errors, nbdirs):
+    def __init__(self, left_only, right_only, equal, different, errors):
         self.left_only:set = left_only
         self.right_only:set = right_only
         self.equal:set = equal
         self.different:set = different
-        self.nbdirs:int = nbdirs
         self.errors:set = errors
 
 
@@ -76,7 +75,6 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
     left_files = set()
     right_files = set()
     errors = set()
-    numdirs:int = 0
     
     exclude_re = []
     for pattern in exclude:
@@ -84,7 +82,7 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             exclude_re.append(re.compile(pattern))
         except re.error:
             errors.add((pattern, "Invalid exclude regex pattern"))
-            return CmpData(set(), set(), set(), set(), errors, numdirs)
+            return CmpData(set(), set(), set(), set(), errors)
 
     include_re = []
     for pattern in include:
@@ -92,10 +90,9 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             include_re.append(re.compile(pattern))
         except re.error:
             errors.add((pattern, "Invalid include regex pattern"))
-            return CmpData(set(), set(), set(), set(), errors, numdirs)
+            return CmpData(set(), set(), set(), set(), errors)
         
     for cwd, dirs, files in os.walk(leftdir):
-        numdirs += len(dirs)
         for f in dirs + files:
             path = os.path.relpath(os.path.join(cwd, f), leftdir)
             re_path = path.replace('\\', '/')
@@ -129,8 +126,6 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             path = os.path.relpath(os.path.join(cwd, f), rightdir)
             re_path = path.replace('\\', '/')
             right_files.add(path)
-            if f in dirs and path not in left_files:
-                numdirs += 1
 
     
     # Finding equal and different files
@@ -166,10 +161,13 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
                     equal_files.add(f)
 
 
-    return CmpData(left_files.difference(common_files), right_files.difference(common_files), equal_files, different_files, errors, numdirs)
+    return CmpData(left_files.difference(common_files), right_files.difference(common_files), equal_files, different_files, errors)
 
-def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False):
-    """synchronize two directories according to the given CmpData results"""
+
+def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> set:
+    """synchronize two directories according to the given CmpData results, and return a set of errors encountered during synchronization"""
+
+    errors = set()
 
     # First remove files/directories only in target directory,
     # to free space before copying files from source to target directory,
@@ -190,6 +188,7 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False):
                         rm_file_or_dir(rightpath)
             except Exception as e:
                 log_error('  '+str(e))
+                errors.add((rightpath, str(e)))
                 continue
 
     # Then update files that are different between source and target directories
@@ -210,6 +209,7 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False):
                     copy_dir_or_file(leftpath, rightpath)
             except Exception as e:
                 log_error('  '+str(e))
+                errors.add((f, str(e)))
                 continue
 
     # At last copy files/directories only in source directory to target directory
@@ -230,4 +230,7 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False):
                     copy_dir_or_file(leftpath, rightpath)
             except Exception as e:
                 log_error('  '+str(e))
+                errors.add((leftfile, str(e)))
                 continue
+
+    return errors
