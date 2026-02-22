@@ -50,8 +50,8 @@ Config file may contain optional include and/or exclude patterns. The priority i
   -> every file whose path match `*/subDir3/*.py` is excluded (even under windows, since `/` is replaced by `\` automatically)
 
 > **Note :**
-> - Use `/` as a folder separator in include/exclude/include_regex/exclude_regex expressions\
-> - include and exclude are CASE SENSITIVE, even under Windows
+> - Use `/` as a folder separator in include/exclude expressions\
+> - include and exclude are case sensitive or case insensitive depending on filesystem of each source folder (auto-detection)
 
 Example including mp4 and txt files but excluding files in any 'temp' subdir :
 ```json

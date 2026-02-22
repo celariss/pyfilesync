@@ -110,33 +110,38 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     errors = set()
     cmpres = compare_dirs(source, target, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
     errors.update(cmpres.errors)
-    
+
     if action=='compare':
-        if cmpres.left_only:
-            log("  Files only in source folder:")
-            for f in sorted(cmpres.left_only):
-                log("   | ."+os.path.sep+f)
-            log('')
-        if cmpres.right_only:
-            log("  Files only in target folder:")
-            for f in sorted(cmpres.right_only):
-                log("   | ."+os.path.sep+f)
-            log('')
-        if cmpres.different:
-            log("  Files that are different between source and target folders:")
-            for f in sorted(cmpres.different):
-                log("   | ."+os.path.sep+f)
-            log('')
+        if verbose:
+            if cmpres.left_only:
+                log("  Files only in source folder:")
+                for f in sorted(cmpres.left_only):
+                    log("   | ."+os.path.sep+f)
+                log('')
+            if cmpres.right_only:
+                log("  Files only in target folder:")
+                for f in sorted(cmpres.right_only):
+                    log("   | ."+os.path.sep+f)
+                log('')
+            if cmpres.different:
+                log("  Files that are different between source and target folders:")
+                for f in sorted(cmpres.different):
+                    log("   | ."+os.path.sep+f)
+                log('')
+        log("  Comparison results:")
+        log("    Left only: %d files" % len(cmpres.left_only))
+        log("    Right only: %d files" % len(cmpres.right_only))
+        log("    Equal: %d files" % len(cmpres.equal))
+        log("    Different: %d files" % len(cmpres.different))
+        log('')
 
     if action=='sync':
-        errors.update( sync_dirs(source, target, cmpres, verbose) )
-
-    if action=='compare' or verbose:
-        log("  Comparison results:")
-        log("    Left only: " + str(len(cmpres.left_only)))
-        log("    Right only: " + str(len(cmpres.right_only)))
-        log("    Equal: " + str(len(cmpres.equal)))
-        log("    Different: " + str(len(cmpres.different)))
+        syncdata:SyncData = sync_dirs(source, target, cmpres, verbose)
+        errors.update( syncdata.errors )
+        log("  Synchronization results:")
+        log("    Copied: %d files (%d Mb)" % (syncdata.nb_copied, syncdata.size_copied/1024/1024))
+        log("    Updated: %d files (%d Mb)" % (syncdata.nb_updated, syncdata.size_updated/1024/1024))
+        log("    Deleted: %d files" % syncdata.nb_deleted)
         log('')
 
     return errors
@@ -158,15 +163,14 @@ def sync_folders_pairs(config: dict, action: str, create_target: bool = False, v
     errors = set()
     for pair in pairs:
         errors.update(sync_folder_pair(pair, globalconfig, action, create_target, verbose))
-        log("")
+    log('All jobs done')
 
     if errors:
         log_error("%d errors encountered during comparison/synchronization :" % len(errors))
         for error in errors:
             log_error("  "+str(error[1])+" : "+str(error[0]))
     else:
-        log("No error encountered !")
-    log('All jobs done.')
+        log("No error encountered")
         
 
 def main(argv):

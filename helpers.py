@@ -36,6 +36,21 @@ def replace_env_variables(text: str) -> str:
     """
     return os.path.expandvars(text)
 
+def is_fs_case_insensitive(path:str) -> bool:
+    return os.path.exists(path.upper()) and os.path.exists(path.lower())
+
+def compile_regex(pattern:str, example_path:str) -> re.Pattern:
+    """compile a regex pattern and return the compiled pattern, or None if the pattern is invalid
+
+    :param pattern: regex pattern to compile
+    :type pattern: str
+    :return: compiled regex pattern, or None if the pattern is invalid
+    :rtype: re.Pattern or None
+    """
+    if is_fs_case_insensitive(example_path):
+        return re.compile(pattern, re.IGNORECASE)
+    return re.compile(pattern)
+
 def cmp_modif_times(left_ts:os.stat_result, right_ts:os.stat_result) -> bool:
         """ Compare modification times of two files.
         return True if left_ts is more recent than right_ts """
@@ -69,6 +84,15 @@ class CmpData(object):
         self.different:set = different
         self.errors:set = errors
 
+class SyncData(object):
+    """sync_dirs() result data class"""
+    def __init__(self, errors=set()):
+        self.errors:set = errors
+        self.nb_copied:int = 0
+        self.nb_updated:int = 0
+        self.nb_deleted:int = 0
+        self.size_copied:int = 0
+        self.size_updated:int = 0
 
 def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False) -> CmpData:
     """compare two directories and return a CmpData object containing the results"""
@@ -80,7 +104,7 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
     exclude_re = []
     for pattern in exclude:
         try:
-            exclude_re.append(re.compile(pattern))
+            exclude_re.append(compile_regex(pattern, leftdir))
         except re.error:
             errors.add((pattern, "Invalid exclude regex pattern"))
             return CmpData(set(), set(), set(), set(), errors)
@@ -88,7 +112,7 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
     include_re = []
     for pattern in include:
         try:
-            include_re.append(re.compile(pattern))
+            include_re.append(compile_regex(pattern, leftdir))
         except re.error:
             errors.add((pattern, "Invalid include regex pattern"))
             return CmpData(set(), set(), set(), set(), errors)
@@ -165,10 +189,10 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
     return CmpData(left_files.difference(common_files), right_files.difference(common_files), equal_files, different_files, errors)
 
 
-def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> set:
+def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> SyncData:
     """synchronize two directories according to the given CmpData results, and return a set of errors encountered during synchronization"""
 
-    errors = set()
+    syncdata:SyncData = SyncData()
 
     # First remove files/directories only in target directory,
     # to free space before copying files from source to target directory,
@@ -190,8 +214,10 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                         rm_file_or_dir(rightpath)
             except Exception as e:
                 log_error('  '+str(e))
-                errors.add((rightpath, str(e)))
+                syncdata.errors.add((rightpath, str(e)))
                 continue
+            else:
+                syncdata.nb_deleted += 1
 
     # Then update files that are different between source and target directories
     if cmp_data.different:
@@ -212,8 +238,11 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                     copy_dir_or_file(leftpath, rightpath)
             except Exception as e:
                 log_error('  '+str(e))
-                errors.add((f, str(e)))
+                syncdata.errors.add((f, str(e)))
                 continue
+            else:
+                syncdata.nb_updated += 1
+                syncdata.size_updated += os.stat(leftpath).st_size
 
     # At last copy files/directories only in source directory to target directory
     if cmp_data.left_only:
@@ -229,11 +258,15 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                             log('   | Copying %s to %s' % (leftpath, rightpath))
                         copy_dir_or_file(leftpath, rightpath)
                 except PermissionError as e:
-                    os.chmod(rightpath, stat.S_IWRITE)
+                    if os.path.exists(rightpath):
+                        os.chmod(rightpath, stat.S_IWRITE)
                     copy_dir_or_file(leftpath, rightpath)
             except Exception as e:
                 log_error('  '+str(e))
-                errors.add((leftfile, str(e)))
+                syncdata.errors.add((leftfile, str(e)))
                 continue
+            else:
+                syncdata.nb_copied += 1
+                syncdata.size_copied += os.stat(leftpath).st_size
 
-    return errors
+    return syncdata
