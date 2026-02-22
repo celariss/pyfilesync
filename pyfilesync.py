@@ -8,6 +8,16 @@ import fnmatch
 import sys, os, json
 from helpers import *
 
+    
+class GlobalConfig:
+    """Global configuration for the script, loaded from config file"""
+    def __init__(self, config: dict):
+        self.exclude:list = config.get('exclude', [])
+        self.include:list = config.get('include', [])
+        self.exclude_regex:list = config.get('exclude_regex', [])
+        self.include_regex:list = config.get('include_regex', [])
+        self.cmp_files_content:bool = config.get('cmp_files_content', False)
+
 
 def load_config(config_file: str) -> dict:
     """load config file
@@ -28,10 +38,13 @@ def load_config(config_file: str) -> dict:
         except json.JSONDecodeError:
             log_error("Config file <"+config_file+"> is not a valid JSON file", True)
             return
-    if not isinstance(result, list):
-        log_error("Config file <"+config_file+"> is not valid, it must contain a list : [...]", True)
+    if not isinstance(result, dict):
+        log_error("Config file <"+config_file+"> is not valid, it must contain a di[ctionary : {...}", True)
         return
-    for pair in result:
+    if 'pairs' not in result:
+        log_error("Config file <"+config_file+"> is not valid, it must contain a 'pairs' key with a list of folders pairs to synchronize", True)
+        return
+    for pair in result['pairs']:
         if 'source' not in pair or 'target' not in pair:
             log_error("Config file <"+config_file+"> is not valid, each pair must contain 'source' and 'target' keys", True)
             return
@@ -41,7 +54,7 @@ def load_config(config_file: str) -> dict:
 
     return result
 
-def sync_folder_pair(pair:dict, action: str, create_target: bool = False, verbose: bool = False):
+def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_target: bool = False, verbose: bool = False):
     """synchronize two folders in mirror mode (left to right only, left files remain unchanged)
 
     :param source: path to source folder
@@ -53,7 +66,7 @@ def sync_folder_pair(pair:dict, action: str, create_target: bool = False, verbos
     """
     source = replace_env_variables(pair['source'])
     target = replace_env_variables(pair['target'])
-    cmp_content = pair.get('cmp_files_content', False)
+    cmp_content = pair.get('cmp_files_content', globalconfig.cmp_files_content)
     
     log(("Synchronizing" if action=='sync' else "Comparing") + " <"+source+"> to <"+target+">...")
 
@@ -68,17 +81,18 @@ def sync_folder_pair(pair:dict, action: str, create_target: bool = False, verbos
             log_error("Target folder <"+target+"> does not exist", True)
             return
     
-    includes_regex = pair.get('include_regex', [])
-    if len(includes_regex)==0:
-        # if no include regex is given, we use include patterns instead (if any) by converting them to regex
-        includes=pair.get('include', [])
-        includes_regex = [r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in includes])]
-    excludes_regex = pair.get('exclude_regex', [])
-    if len(excludes_regex)==0:
-        # if no exclude regex is given, we use exclude patterns instead (if any) by converting them to regex
-        excludes=pair.get('exclude', [])
-        excludes_regex = [r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in excludes])]
+    # preparing the list of include regex patterns
+    includes_regex = pair.get('include_regex', []) + globalconfig.include_regex
+    # -> we use include patterns (if any) by converting them to regex
+    includes=pair.get('include', [])
+    includes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in includes])])
     
+    # preparing the list of exclude regex patterns
+    excludes_regex = pair.get('exclude_regex', []) + globalconfig.exclude_regex
+    # -> we use exclude patterns (if any) by converting them to regex
+    excludes=pair.get('exclude', [])
+    excludes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in excludes])])
+
     cmpres = compare_dirs(source, target, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
     
     if action=='compare' or verbose:
@@ -113,10 +127,9 @@ def sync_folder_pair(pair:dict, action: str, create_target: bool = False, verbos
 
     if action=='sync':
         sync_dirs(source, target, cmpres, verbose)
-    
 
     
-def sync_folders_pairs(pairs: list, action: str, create_target: bool = False, verbose: bool = False):
+def sync_folders_pairs(config: dict, action: str, create_target: bool = False, verbose: bool = False):
     """synchronize folders pairs in mirror mode (left to right only, left files remain unchanged)
 
     :param pairs: list of dict containing 'source' and 'target' keys, representing folders pairs to synchronize
@@ -124,8 +137,13 @@ def sync_folders_pairs(pairs: list, action: str, create_target: bool = False, ve
     :param create_target: indicates whether the function must create target folders if they do not exist, defaults to False
     :type create_target: bool, optional
     """
+    if 'global' in config:
+        globalconfig = GlobalConfig(config['global'])
+    else:
+        globalconfig = GlobalConfig({})
+    pairs:list = config.get('pairs', [])
     for pair in pairs:
-        sync_folder_pair(pair, action, create_target, verbose)
+        sync_folder_pair(pair, globalconfig, action, create_target, verbose)
         log("")
         
 
