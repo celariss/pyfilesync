@@ -185,7 +185,8 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                     try:
                         rm_file_or_dir(rightpath)
                     except PermissionError as e:
-                        os.chmod(rightpath, stat.S_IWRITE)
+                        if os.path.exists(rightpath):
+                            os.chmod(rightpath, stat.S_IWRITE)
                         rm_file_or_dir(rightpath)
             except Exception as e:
                 log_error('  '+str(e))
@@ -206,7 +207,8 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                             log('   | Updating %s from %s' % (rightpath, leftpath))
                         copy_dir_or_file(leftpath, rightpath)
                 except PermissionError as e:
-                    os.chmod(rightpath, stat.S_IWRITE)
+                    if os.path.exists(rightpath):
+                        os.chmod(rightpath, stat.S_IWRITE)
                     copy_dir_or_file(leftpath, rightpath)
             except Exception as e:
                 log_error('  '+str(e))

@@ -49,6 +49,10 @@ Config file may contain optional include and/or exclude patterns. The priority i
   -> match paths that contain subDir1 or subDir2* as a folder name (like in `/tmp/subDir1/toto.xml`)
   -> every file whose path match `*/subDir3/*.py` is excluded (even under windows, since `/` is replaced by `\` automatically)
 
+> **Note :**
+> - Use `/` as a folder separator in include/exclude/include_regex/exclude_regex expressions\
+> - include and exclude are CASE SENSITIVE, even under Windows
+
 Example including mp4 and txt files but excluding files in any 'temp' subdir :
 ```json
 {
