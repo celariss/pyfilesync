@@ -8,6 +8,9 @@ import fnmatch
 import sys, os, json
 from helpers import *
 
+def check_list(obj, name:str):
+    if not isinstance(obj, list):
+        log_error("Invalid config file : '"+name+"' key must be a list", True)
     
 class GlobalConfig:
     """Global configuration for the script, loaded from config file"""
@@ -17,6 +20,10 @@ class GlobalConfig:
         self.exclude_regex:list = config.get('exclude_regex', [])
         self.include_regex:list = config.get('include_regex', [])
         self.cmp_files_content:bool = config.get('cmp_files_content', False)
+        check_list(self.exclude, 'global.exclude')
+        check_list(self.include, 'global.include')
+        check_list(self.exclude_regex, 'global.exclude_regex')
+        check_list(self.include_regex, 'global.include_regex')
 
 
 def load_config(config_file: str) -> dict:
@@ -80,33 +87,30 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
         else:
             log_error("Target folder <"+target+"> does not exist")
             return
+        
+    check_list(pair.get('include', []), 'include')
+    check_list(pair.get('exclude', []), 'exclude')
+    check_list(pair.get('include_regex', []), 'include_regex')
+    check_list(pair.get('exclude_regex', []), 'exclude_regex')
     
     # preparing the list of include regex patterns
     includes_regex = pair.get('include_regex', []) + globalconfig.include_regex
     # -> we use include patterns (if any) by converting them to regex
     includes=pair.get('include', [])
     if includes:
-        includes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in includes])])
+        includes_regex.extend([r'|'.join([fnmatch.translate(x) for x in includes])])
     
     # preparing the list of exclude regex patterns
     excludes_regex = pair.get('exclude_regex', []) + globalconfig.exclude_regex
     # -> we use exclude patterns (if any) by converting them to regex
     excludes=pair.get('exclude', [])
     if excludes:
-        excludes_regex.extend([r'|'.join([fnmatch.translate(x.replace('/',os.sep)) for x in excludes])])
+        excludes_regex.extend([r'|'.join([fnmatch.translate(x) for x in excludes])])
 
     errors = set()
     cmpres = compare_dirs(source, target, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
     errors.update(cmpres.errors)
     
-    if action=='compare' or verbose:
-        log("  Comparison results:")
-        log("    Left only: " + str(len(cmpres.left_only)))
-        log("    Right only: " + str(len(cmpres.right_only)))
-        log("    Equal: " + str(len(cmpres.equal)))
-        log("    Different: " + str(len(cmpres.different)))
-        log('')
-
     if action=='compare':
         if cmpres.left_only:
             log("  Files only in source folder:")
@@ -126,6 +130,14 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
 
     if action=='sync':
         errors.update( sync_dirs(source, target, cmpres, verbose) )
+
+    if action=='compare' or verbose:
+        log("  Comparison results:")
+        log("    Left only: " + str(len(cmpres.left_only)))
+        log("    Right only: " + str(len(cmpres.right_only)))
+        log("    Equal: " + str(len(cmpres.equal)))
+        log("    Different: " + str(len(cmpres.different)))
+        log('')
 
     return errors
 
