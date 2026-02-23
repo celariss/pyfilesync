@@ -96,14 +96,14 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     # preparing the list of include regex patterns
     includes_regex = pair.get('include_regex', []) + globalconfig.include_regex
     # -> we use include patterns (if any) by converting them to regex
-    includes=pair.get('include', [])
+    includes=pair.get('include', []) + globalconfig.include
     if includes:
         includes_regex.extend([r'|'.join([fnmatch.translate(x) for x in includes])])
     
     # preparing the list of exclude regex patterns
     excludes_regex = pair.get('exclude_regex', []) + globalconfig.exclude_regex
     # -> we use exclude patterns (if any) by converting them to regex
-    excludes=pair.get('exclude', [])
+    excludes=pair.get('exclude', []) + globalconfig.exclude
     if excludes:
         excludes_regex.extend([r'|'.join([fnmatch.translate(x) for x in excludes])])
 
@@ -191,4 +191,5 @@ def main(argv):
         sync_folders_pairs(config, args.action, args.create, args.verbose)
 
 if __name__ == "__main__":
+
    main(sys.argv[1:])
