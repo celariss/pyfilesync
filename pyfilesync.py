@@ -192,11 +192,11 @@ def main(argv):
                                         formatter_class=argparse.RawTextHelpFormatter)
     argParser.add_argument("config_file", help="path to config file")
     argParser.add_argument("action", help='''action, among [list, sync, compare]
-. list: lists pairs in config file,
-. sync: actually synchronizes folders (default action).
-. compare: only shows differences between folders''', nargs='?')
+ > list: lists pairs in config file,
+ > sync: actually synchronizes folders (default action).
+ > compare: only shows differences between folders''', nargs='?')
     argParser.add_argument("-p", "--pair", help="select one or more specific pair(s) by name", nargs='+', dest='pairs', default=None)
-    argParser.add_argument("-c", "--create", help="create right folders if do not exist", action='store_true')
+    argParser.add_argument("-c", "--create", help="create right folder if needed", action='store_true')
     argParser.add_argument("-v", "--verbose", help="verbose mode", action='store_true')
     args = argParser.parse_args()
 
