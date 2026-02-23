@@ -66,9 +66,9 @@ def copy_dir_or_file(src:str, dest:str):
     if os.path.isdir(src):
         shutil.copytree(src, dest)
     else:
-        targetdir = os.path.dirname(dest)
-        if not os.path.exists(targetdir):
-            os.makedirs(targetdir)
+        destdir = os.path.dirname(dest)
+        if not os.path.exists(destdir):
+            os.makedirs(destdir)
         if os.path.islink(src):
             os.symlink(os.readlink(src), dest)
         else:
@@ -194,9 +194,9 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
 
     syncdata:SyncData = SyncData()
 
-    # First remove files/directories only in target directory,
-    # to free space before copying files from source to target directory,
-    # in case there is not enough free space to copy source files without deleting target files first
+    # First remove files/directories only in right directory,
+    # to free space before copying files from left to right directory,
+    # in case there is not enough free space to copy left files without deleting right files first
     if cmp_data.right_only:
         if verbose:
             log('  Only in %s' % rightdir)
@@ -219,7 +219,7 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
             else:
                 syncdata.nb_deleted += 1
 
-    # Then update files that are different between source and target directories
+    # Then update files that are different between left and right directories
     if cmp_data.different:
         if verbose:
             log('  Different in %s and %s' % (leftdir, rightdir))
@@ -244,7 +244,7 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
                 syncdata.nb_updated += 1
                 syncdata.size_updated += os.stat(leftpath).st_size
 
-    # At last copy files/directories only in source directory to target directory
+    # At last copy files/directories only in left directory to right directory
     if cmp_data.left_only:
         if verbose:
             log('  Only in %s' % leftdir)

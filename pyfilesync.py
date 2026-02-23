@@ -52,41 +52,41 @@ def load_config(config_file: str) -> dict:
         log_error("Config file <"+config_file+"> is not valid, it must contain a 'pairs' key with a list of folders pairs to synchronize", True)
         return
     for pair in result['pairs']:
-        if 'source' not in pair or 'target' not in pair:
-            log_error("Config file <"+config_file+"> is not valid, each pair must contain 'source' and 'target' keys", True)
+        if 'left' not in pair or 'right' not in pair:
+            log_error("Config file <"+config_file+"> is not valid, each pair must contain 'left' and 'right' keys", True)
             return
-        if not isinstance(pair['source'],str) or not isinstance(pair['target'],str):
-            log_error("Config file <"+config_file+"> is not valid, 'source' and 'target' values must be strings", True)
+        if not isinstance(pair['left'],str) or not isinstance(pair['right'],str):
+            log_error("Config file <"+config_file+"> is not valid, 'left' and 'right' values must be strings", True)
             return
 
     return result
 
-def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_target: bool = False, verbose: bool = False) -> set:
+def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_right: bool = False, verbose: bool = False) -> set:
     """synchronize two folders in mirror mode (left to right only, left files remain unchanged)
 
-    :param source: path to source folder
-    :type source: str
-    :param target: path to target folder
-    :type target: str
-    :param create_target: indicates whether the function must create target folder if it does not exist, defaults to False
-    :type create_target: bool, optional
+    :param left: path to left folder
+    :type left: str
+    :param right: path to right folder
+    :type right: str
+    :param create_right: indicates whether the function must create right folder if it does not exist, defaults to False
+    :type create_right: bool, optional
     """
-    source = replace_env_variables(pair['source'])
-    target = replace_env_variables(pair['target'])
+    left = replace_env_variables(pair['left'])
+    right = replace_env_variables(pair['right'])
     cmp_content = pair.get('cmp_files_content', globalconfig.cmp_files_content)
     
-    log(("Synchronizing" if action=='sync' else "Comparing") + " <"+source+"> to <"+target+">...")
+    log(("Synchronizing" if action=='sync' else "Comparing") + " <"+left+"> to <"+right+">...")
 
-    if not os.path.exists(source):
-         log_error("Source folder <"+source+"> does not exist")
-         return
+    if not os.path.exists(left):
+         log_error("Left folder <"+left+"> does not exist")
+         return (set([("Left folder does not exist", left)]))
 
-    if not os.path.exists(target):
-        if create_target:
-            os.makedirs(target)
+    if not os.path.exists(right):
+        if create_right:
+            os.makedirs(right)
         else:
-            log_error("Target folder <"+target+"> does not exist")
-            return
+            log_error("Right folder <"+right+"> does not exist")
+            return (set("Right folder  does not exist", right))
         
     check_list(pair.get('include', []), 'include')
     check_list(pair.get('exclude', []), 'exclude')
@@ -108,23 +108,23 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
         excludes_regex.extend([r'|'.join([fnmatch.translate(x) for x in excludes])])
 
     errors = set()
-    cmpres = compare_dirs(source, target, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
+    cmpres = compare_dirs(left, right, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content)
     errors.update(cmpres.errors)
 
     if action=='compare':
         if verbose:
             if cmpres.left_only:
-                log("  Files only in source folder:")
+                log("  Files only in left folder:")
                 for f in sorted(cmpres.left_only):
                     log("   | ."+os.path.sep+f)
                 log('')
             if cmpres.right_only:
-                log("  Files only in target folder:")
+                log("  Files only in right folder:")
                 for f in sorted(cmpres.right_only):
                     log("   | ."+os.path.sep+f)
                 log('')
             if cmpres.different:
-                log("  Files that are different between source and target folders:")
+                log("  Files that are different between left and right folders:")
                 for f in sorted(cmpres.different):
                     log("   | ."+os.path.sep+f)
                 log('')
@@ -133,62 +133,100 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
         log("    Right only: %d files" % len(cmpres.right_only))
         log("    Equal: %d files" % len(cmpres.equal))
         log("    Different: %d files" % len(cmpres.different))
-        log('')
 
     if action=='sync':
-        syncdata:SyncData = sync_dirs(source, target, cmpres, verbose)
+        syncdata:SyncData = sync_dirs(left, right, cmpres, verbose)
         errors.update( syncdata.errors )
         log("  Synchronization results:")
         log("    Copied: %d files (%d Mb)" % (syncdata.nb_copied, syncdata.size_copied/1024/1024))
         log("    Updated: %d files (%d Mb)" % (syncdata.nb_updated, syncdata.size_updated/1024/1024))
         log("    Deleted: %d files" % syncdata.nb_deleted)
-        log('')
 
     return errors
 
     
-def sync_folders_pairs(config: dict, action: str, create_target: bool = False, verbose: bool = False):
+def sync_folders_pairs(config: dict, action: str, pairs2process:list[str], create_right: bool = False, verbose: bool = False):
     """synchronize folders pairs in mirror mode (left to right only, left files remain unchanged)
 
-    :param pairs: list of dict containing 'source' and 'target' keys, representing folders pairs to synchronize
+    :param pairs: list of dict containing 'left' and 'right' keys, representing folders pairs to synchronize
     :type pairs: list
-    :param create_target: indicates whether the function must create target folders if they do not exist, defaults to False
-    :type create_target: bool, optional
+    :param create_right: indicates whether the function must create right folders if they do not exist, defaults to False
+    :type create_right: bool, optional
     """
     if 'global' in config:
         globalconfig = GlobalConfig(config['global'])
     else:
         globalconfig = GlobalConfig({})
     pairs:list = config.get('pairs', [])
+
+    for pair in pairs:
+        pair_name = pair.get('name', '')
+        if not re.match("^[A-Za-z0-9_-]*$", pair_name):
+            log_error("Invalid pair name '%s' : pair names may only contain '-', '_' and alphanumeric characters" % pair_name, True)
+            return     
+
+    if pairs2process is not None:
+        for pair_name in pairs2process:
+            if not any(pair.get('name', '') == pair_name for pair in pairs):
+                log_error("No pair with name '%s' found in config file" % pair_name, True)
+                return
+
     errors = set()
     for pair in pairs:
-        errors.update(sync_folder_pair(pair, globalconfig, action, create_target, verbose))
+        if (not pairs2process) or (pair.get('name', '') in pairs2process):
+            errors.update(sync_folder_pair(pair, globalconfig, action, create_right, verbose))
+            log('')
     log('All jobs done')
 
-    if errors:
-        log_error("%d errors encountered during comparison/synchronization :" % len(errors))
-        for error in errors:
-            log_error("  "+str(error[1])+" : "+str(error[0]))
-    else:
-        log("No error encountered")
+    if verbose:
+        if errors:
+            log_error("%d errors encountered during comparison/synchronization :" % len(errors))
+            for error in errors:
+                log_error("  "+str(error[1])+" : "+str(error[0]))
+        else:
+            log("No error encountered")
         
 
 def main(argv):
-    argParser = argparse.ArgumentParser(description="This script synchronize folders pairs from a config file, in mirror mode (left to right only, left files remain unchanged). It can also be used to show differences between folders pairs, without synchronizing them.")
+    argParser = argparse.ArgumentParser(description="This script synchronize folders pairs from a config file, in mirror mode (left to right only, left files remain unchanged). It can also be used to show differences between folders pairs, without synchronizing them.",
+                                        formatter_class=argparse.RawTextHelpFormatter)
     argParser.add_argument("config_file", help="path to config file")
-    argParser.add_argument("action", help="action, among ['sync', 'compare']. 'sync': actually synchronizes folders (default action). 'compare': only shows differences between folders", nargs='?')
-    argParser.add_argument("-c", "--create", help="create target folders if do not exist", action='store_true')
+    argParser.add_argument("action", help='''action, among [list, sync, compare]
+. list: lists pairs in config file,
+. sync: actually synchronizes folders (default action).
+. compare: only shows differences between folders''', nargs='?')
+    argParser.add_argument("-p", "--pair", help="select one or more specific pair(s) by name", nargs='+', dest='pairs', default=None)
+    argParser.add_argument("-c", "--create", help="create right folders if do not exist", action='store_true')
     argParser.add_argument("-v", "--verbose", help="verbose mode", action='store_true')
     args = argParser.parse_args()
 
     if (args.action is None):
         args.action = 'sync'
-    elif (args.action not in ['sync', 'compare']):
+    elif (args.action not in ['list', 'sync', 'compare']):
         log_error('invalid action given : '+args.action, True)
 
     config = load_config(args.config_file)
-    if config is not None:
-        sync_folders_pairs(config, args.action, args.create, args.verbose)
+    if config is None:
+        log_error("Failed to load config file '%s'" % args.config_file)
+        return
+    
+    idx = 0
+    for pair in config.get('pairs', []):
+        idx += 1
+        if not 'name' in pair:
+            pair['name'] = 'pair_%d' % idx
+       
+    if args.action == 'list':
+        for pair in config.get('pairs', []):
+            left = replace_env_variables(pair['left'])
+            right = replace_env_variables(pair['right'])
+            name = pair['name']
+            log('')
+            log('Pair "'+name+'" : ')
+            log('  | Left : '+left)
+            log('  | Right: '+right)
+    else:
+        sync_folders_pairs(config, args.action, args.pairs, args.create, args.verbose)
 
 if __name__ == "__main__":
 
