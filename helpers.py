@@ -64,7 +64,9 @@ def rm_file_or_dir(path:str):
 
 def copy_dir_or_file(src:str, dest:str):
     if os.path.isdir(src):
-        shutil.copytree(src, dest)
+        #shutil.copytree(src, dest)
+        if not os.path.exists(dest):
+            os.mkdir(dest)
     else:
         destdir = os.path.dirname(dest)
         if not os.path.exists(destdir):
@@ -94,7 +96,7 @@ class SyncData(object):
         self.size_copied:int = 0
         self.size_updated:int = 0
 
-def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False) -> CmpData:
+def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
     """compare two directories and return a CmpData object containing the results"""
 
     left_files = set()
@@ -117,39 +119,48 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             errors.add((pattern, "Invalid include regex pattern"))
             return CmpData(set(), set(), set(), set(), errors)
         
-    for cwd, dirs, files in os.walk(leftdir):
+    excluded:set = set()
+    for root, dirs, files in os.walk(leftdir):
         for f in dirs + files:
-            path = os.path.relpath(os.path.join(cwd, f), leftdir)
-            re_path = path.replace('\\', '/')
-            
-            add_path = False
-            for exre in exclude_re:
-                if exre.match(re_path):
-                    # path is in excludes, do not add it
-                    break
+            if root in excluded:
+                excluded.add(os.path.join(root, f))
             else:
-                # path was not in excludes, test if it is in includes
-                if len(include)==0:
-                    # no include pattern, add path
-                    add_path = True
-                else:
-                    for incre in include_re:
-                        if incre.match(re_path):
-                            add_path = True
+                full_path = os.path.join(root, f)
+                path = os.path.relpath(full_path, leftdir)
+                re_path = '/'+path.replace('\\', '/')
+
+                to_include = False
+                for exre in exclude_re:
+                    if exre.match(re_path) or exre.match(f):
+                        # path is in excludes, do not add it
+                        break
+                    elif os.path.isdir(full_path):
+                        if exre.match(re_path+'/') or exre.match(f+'/'):
+                            # path is in excludes, do not add it
                             break
+                else:
+                    # path was not in excludes, test if it is in includes
+                    if len(include)==0:
+                        # no include pattern, add path
+                        to_include = True
+                    else:
+                        for incre in include_re:
+                            if incre.match(re_path) or incre.match(f):
+                                to_include = True
+                                break
+                            elif os.path.isdir(full_path):
+                                if incre.match(re_path+'/') or incre.match(f+'/'):
+                                    to_include = True
+                                    break
 
-            if add_path:
-                left_files.add(path)
-                anc_dirs = re_path.split('/')
-                anc_dirs_path = ''
-                for ad in anc_dirs:
-                    anc_dirs_path = os.path.join(anc_dirs_path, ad)
-                    left_files.add(anc_dirs_path)
+                if to_include:
+                    left_files.add(path)
+                else:
+                    excluded.add(full_path)
 
-    for cwd, dirs, files in os.walk(rightdir):
+    for root, dirs, files in os.walk(rightdir):
         for f in dirs + files:
-            path = os.path.relpath(os.path.join(cwd, f), rightdir)
-            re_path = path.replace('\\', '/')
+            path = os.path.relpath(os.path.join(root, f), rightdir)
             right_files.add(path)
 
     
@@ -185,8 +196,10 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
                 else:
                     equal_files.add(f)
 
-
-    return CmpData(left_files.difference(common_files), right_files.difference(common_files), equal_files, different_files, errors)
+    right_only:set = set()
+    if not ignore_right_only:
+        right_only = right_files.difference(common_files)
+    return CmpData(left_files.difference(common_files), right_only, equal_files, different_files, errors)
 
 
 def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> SyncData:
@@ -228,10 +241,9 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
             rightpath = os.path.join(rightdir, f)
             try:
                 try:
-                    if not os.path.isdir(leftpath):
-                        if verbose:
-                            log('   | Updating %s from %s' % (rightpath, leftpath))
-                        copy_dir_or_file(leftpath, rightpath)
+                    if verbose:
+                        log('   | Updating %s from %s' % (rightpath, leftpath))
+                    copy_dir_or_file(leftpath, rightpath)
                 except PermissionError as e:
                     if os.path.exists(rightpath):
                         os.chmod(rightpath, stat.S_IWRITE)
@@ -253,10 +265,9 @@ def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) 
             rightpath = os.path.join(rightdir, leftfile)
             try:
                 try:
-                    if not os.path.isdir(leftpath):
-                        if verbose:
-                            log('   | Copying %s to %s' % (leftpath, rightpath))
-                        copy_dir_or_file(leftpath, rightpath)
+                    if verbose:
+                        log('   | Copying %s to %s' % (leftpath, rightpath))
+                    copy_dir_or_file(leftpath, rightpath)
                 except PermissionError as e:
                     if os.path.exists(rightpath):
                         os.chmod(rightpath, stat.S_IWRITE)

@@ -17,8 +17,6 @@
 - comparison criteria : file size and modification date (or file size and file content if requested)
 - case sensitivity of filesystem is detected to interpret include/exclude pattern correctly
 
-#### TODO
-- add a 'restore' command
 
 ## Command line
 #### Use the following command line to show usage :
@@ -77,11 +75,11 @@ Field name | default<br>value | global<br>section | Description
 ---: | :---: | :---: | :---
 `left`            |             | no  | **-> mandatory**<br>left (source) folder to synchronize from. 
 `right`           |             | no  | **-> mandatory**<br>right (target) folder to synchronize to.
-`name`            |             | no  | name of the pair.<br>If not set, a name is automatically generated.
-`include`         | **[ '*' ]** | yes | list of **wilcards** expressions that filter the left files to synchronize.
-`exclude`         |  **[ ]**    | yes | list of **wildcars** expressions that filter out paths to synchronize.<br>The exclude filters are prioritary over include filters.
+`name`            |             | no  | name of the pair. only `_`, `-` and alphanumeric characters are allowed.<br>if not set, a name is automatically generated.
+`include`         | **[ '*' ]** | yes | list of **wildcard** expressions that filter the left files to synchronize.
+`exclude`         |  **[ ]**    | yes | list of **wildcard** expressions that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.
 `include_regex`   |   **[ ]**   | yes | list of **regular expressions** that filter the left files to synchronize.<br>note: `include_regex` list is appended to `include`, if any.
-`exclude_regex`     | **[ ]**   | yes | list of **regular expressions** that filter out paths to synchronize.<br>The exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
+`exclude_regex`     | **[ ]**   | yes | list of **regular expressions** that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
 `cmp_files_content` | **false** | yes | boolean field to force files content instead of modification times as comparison criteria<br>example: ```"cmp_files_content": true```
 
 ### More info on include/exclude
