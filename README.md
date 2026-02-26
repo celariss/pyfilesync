@@ -71,8 +71,8 @@ An optional `global` section sets parameters that applies to all pairs :
 ```
 
 All available parameters are presented here after :
-Field name | default<br>value | global<br>section | Description
----: | :---: | :---: | :---
+Field name        | default<br>value | global<br>section | Description
+---:              | :---:       | :---: | :---
 `left`            |             | no  | **-> mandatory**<br>left (source) folder to synchronize from. 
 `right`           |             | no  | **-> mandatory**<br>right (target) folder to synchronize to.
 `name`            |             | no  | name of the pair. only `_`, `-` and alphanumeric characters are allowed.<br>if not set, a name is automatically generated.
@@ -82,18 +82,34 @@ Field name | default<br>value | global<br>section | Description
 `exclude_regex`     | **[ ]**   | yes | list of **regular expressions** that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
 `cmp_files_content` | **false** | yes | boolean field to force files content instead of modification times as comparison criteria<br>example: ```"cmp_files_content": true```
 
-### More info on include/exclude
-- Config file may contain optional include and/or exclude patterns. If not given, include pattern target all files by default.
-- The priority is given to exclude patterns over include.
+### About include/exclude patterns
+- Config file may contain optional include and/or exclude patterns.
+- All files are included by default.
+- The priority is given to exclude patterns over includes, in this order :
+    - exclude patterns in global section
+    - exclude patterns in current pair parameters
+    - include patterns in global section
+    - include patterns in current pair parameters
 - The resulting file filter is used to detect missing files in right folder (left-only files), as well as files to remove (right-only files)
-- 2 options are given to indicate include/exclude patterns :
-  - Regex expressions : use `"include_regex"` and/or `"exclude_regex"` fields
-  - Extended wildcard expressions : use "include" and/or "exclude" fields.\
-  Examples : `'*.cpp'`, `'*.h'`, `'subDir1'`, `'subDir2*'`, `'*/subDir3/*.py'`\
-  -> match paths that contain subDir1 or subDir2* as a folder name (like in `/tmp/subDir1/toto.xml`)
-  -> every file whose path match `*/subDir3/*.py` is excluded (even under windows, since `/` is replaced by `\` automatically)
-- **Folder separator** : Always Use `/` as folder separator in any include/exclude expressions
+- Each pattern is tested on file path AND filename alone
+- **Folder separator** : Always use `/` separator in wildcards and regex expressions, for `\` is replaced by `/` automatically in all file paths before trying to match patterns, so that it will give the same results under Windows and Linux.
 - **case sensitivity** : include and exclude are case sensitive or case insensitive depending on left folder filesystem (auto-detected for each pair)
+- Be aware that file paths are all made relative to the left/right folders (left/right folders part of any file path is removed before regex matching)
+- 2 options are given to indicate include/exclude patterns (NOT mutually exclusive) :
+  - Regex expressions : use `"include_regex"` and/or `"exclude_regex"` fields
+  - Extended wildcard expressions : use "include" and/or "exclude" fields.
+
+#### Examples of wildcard expressions
+Expression        | Description
+:---              | :--- |
+`'*.cpp'`         | matches path for files (not dir) that have a `.cpp` filename extension
+`'book_num??.txt'`| matches paths for files (not dir) like `'book_num03.txt'` or `'book_num29.txt'`
+`'subDir1/'`      | matches any path that contains a directory named `subDir` anywhere |
+`'/rootDir/'`     | matches only paths that start with `rootDir` directory |
+`'subDir/*.py'`   | matches paths that contain a dir named  `subDir` and whose filename ends with `.py`
+`'/subDir1/subDir2/myfile.py'` | matches exact file path (from 'pair' base folder)
+`'/subDir1/subDir2/'` | matches exact directory path (from 'pair' base folder), and its content
+
 
 Example including mp4 and txt files but excluding files in any 'temp' subdir :
 ```json
@@ -103,7 +119,7 @@ Example including mp4 and txt files but excluding files in any 'temp' subdir :
             "left": "~/foldertosave1/",
             "right": "/mnt/mysavedisk/rightfolder1",
             "include": ["*.txt", "*.mp4"],
-            "exclude": ["temp"]
+            "exclude": ["temp/"]
         }
     ]
 }

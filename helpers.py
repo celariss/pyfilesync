@@ -2,6 +2,7 @@ __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
+from enum import Enum
 import math
 import os
 import stat
@@ -96,6 +97,46 @@ class SyncData(object):
         self.size_copied:int = 0
         self.size_updated:int = 0
 
+def file_match_regex(path:str, filename:str, regex:re.Pattern, isdir:bool) -> bool:
+    """return True if the given path match the given regex, taking into account whether it is a directory or not
+    (if isdir is True, the regex must have a trailing slash)
+
+     :param path: path to match (with filename)
+     :param filename: filename to match = os.path.basename(path)
+     :param regex: compiled regex pattern to match against the path / filename
+     :param isdir: indicates whether the path is a directory or not
+     :return: True if the path match the regex, False otherwise
+    """
+    if isdir:
+        if regex.match('/'+path+'/') or regex.match(filename+'/'):
+            return True
+    elif regex.match('/'+path) or regex.match(filename):
+        return True
+    return False
+
+class EfileMatch(Enum):
+    NO_MATCH = 0
+    EXCLUDED = 1
+    INCLUDED = 2
+
+def file_match_all_regex(path:str, filename:str, isdir:bool, exclude_re:list, include_re:list) -> EfileMatch:
+    result:bool = False
+    path = '/'+path.replace('\\', '/')
+    
+    for exre in exclude_re:
+        if file_match_regex(path, filename, exre, isdir):
+            return EfileMatch.EXCLUDED
+    # path was not in excludes, now we test if it is in includes
+    else:
+        if len(include_re)==0:
+            return EfileMatch.INCLUDED
+        else:
+            for incre in include_re:
+                if file_match_regex(path, filename, incre, isdir):
+                    return EfileMatch.INCLUDED
+    return EfileMatch.NO_MATCH
+
+
 def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
     """compare two directories and return a CmpData object containing the results"""
 
@@ -127,35 +168,11 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             else:
                 full_path = os.path.join(root, f)
                 path = os.path.relpath(full_path, leftdir)
-                re_path = '/'+path.replace('\\', '/')
-
-                to_include = False
-                for exre in exclude_re:
-                    if exre.match(re_path) or exre.match(f):
-                        # path is in excludes, do not add it
-                        break
-                    elif os.path.isdir(full_path):
-                        if exre.match(re_path+'/') or exre.match(f+'/'):
-                            # path is in excludes, do not add it
-                            break
-                else:
-                    # path was not in excludes, test if it is in includes
-                    if len(include)==0:
-                        # no include pattern, add path
-                        to_include = True
-                    else:
-                        for incre in include_re:
-                            if incre.match(re_path) or incre.match(f):
-                                to_include = True
-                                break
-                            elif os.path.isdir(full_path):
-                                if incre.match(re_path+'/') or incre.match(f+'/'):
-                                    to_include = True
-                                    break
-
-                if to_include:
+                isdir = os.path.isdir(full_path)
+                match:EfileMatch = file_match_all_regex(path, f, isdir, exclude_re, include_re)
+                if match == EfileMatch.INCLUDED or (match == EfileMatch.NO_MATCH and isdir):
                     left_files.add(path)
-                else:
+                elif isdir and match == EfileMatch.EXCLUDED:
                     excluded.add(full_path)
 
     for root, dirs, files in os.walk(rightdir):
@@ -195,6 +212,9 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
                     different_files.add(f)
                 else:
                     equal_files.add(f)
+        else:
+            # it's a directory => equal
+            equal_files.add(f)
 
     right_only:set = set()
     if not ignore_right_only:
