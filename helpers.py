@@ -162,6 +162,7 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
         
     excluded:set = set()
     for root, dirs, files in os.walk(leftdir):
+        must_clean_path:bool = False
         for f in dirs + files:
             if root in excluded:
                 excluded.add(os.path.join(root, f))
@@ -170,12 +171,24 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
                 path = os.path.relpath(full_path, leftdir)
                 isdir = os.path.isdir(full_path)
                 match:EfileMatch = file_match_all_regex(path, f, isdir, exclude_re, include_re)
-                if match == EfileMatch.INCLUDED or (match == EfileMatch.NO_MATCH and isdir):
+                if match == EfileMatch.INCLUDED:
                     left_files.add(path)
+                    must_clean_path:bool = True
                 elif isdir and match == EfileMatch.EXCLUDED:
                     excluded.add(full_path)
 
+        if must_clean_path:
+            # we must remove parent dirs from left_files since they are already included in current path
+            path_to_remove = os.path.relpath(root, leftdir)
+            while path_to_remove:
+                if path_to_remove in left_files:
+                    left_files.remove(path_to_remove)
+                path_to_remove = os.path.dirname(path_to_remove)
+
     for root, dirs, files in os.walk(rightdir):
+        parent = os.path.relpath(root, rightdir)
+        if  parent in right_files:
+            right_files.remove(parent)
         for f in dirs + files:
             path = os.path.relpath(os.path.join(root, f), rightdir)
             right_files.add(path)
