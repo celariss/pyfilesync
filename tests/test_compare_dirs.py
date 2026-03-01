@@ -1,5 +1,6 @@
 import fnmatch
 from pathlib import WindowsPath
+import re
 
 import pytest
 
@@ -18,10 +19,13 @@ testtree:list = [
             }
         ],
         'dir2':[
-            'file7', 'file8.ini', 'item'
+            'file7', 'file8.ini', 'item',
+            {
+                'dir1':['file5.txt']
+            }
         ],
         'dir3':[],
-        'item':[]
+        'item':['item2']
     }
 ]
 
@@ -46,6 +50,38 @@ class FSMock:
     def rootnode(self) -> list:
         return self.filetree
     
+    def _find_node_(tree:list, path:str, create:bool = False) -> list:
+        isdir = path.endswith('/')
+        pathitems:list
+        if isdir:
+            pathitems = path.split('/')[0:-1]
+        else:
+            pathitems = path.split('/')
+        node:list = tree
+        num = 0
+        for item in pathitems:
+            num +=1
+            dirsnode:dict =FSMock._get_dirs_node_(node)
+            if num == len(pathitems):
+                if (isdir and item in node) or ((not isdir) and item in dirsnode):
+                    # Error, it is file and it should be a dir (and vice versa)
+                    return None
+                if isdir:
+                    if (not item in dirsnode) and create:
+                        dirsnode[item] = []
+                    return dirsnode.get(item, [])
+                else:
+                    if (not item in node) and create:
+                        node.append(item)
+                    return node
+            if (not item in dirsnode) and create:
+                dirsnode[item] = []
+            if not item in dirsnode:
+                # error, path does not exist in tree
+                return None
+            node = dirsnode[item] 
+        return node
+    
     def from_fileset(fileset:set) -> FSMock:
         filelist:list = list(fileset)
         filelist.sort(key=lambda x: x.count('/'))
@@ -54,22 +90,15 @@ class FSMock:
         if filelist:
             cur_level:int = 0
             for file in filelist:
-                level = file.count('/')
-                while level>cur_level:
-                    # we are going down in the tree, we need to create a new subtree
-                    dirname = file.split('/')[cur_level]
-                    cur_node.append({dirname: []})
-                    cur_node = cur_node[-1][dirname]
-                    cur_level += 1
-                else:
-                    cur_node.append(file.split('/')[-1])
+                cur_node = FSMock._find_node_(filetree, file, True)
         return FSMock(filetree)
     
-    def _get_dirs_node_(node):
+    def _get_dirs_node_(node:list) -> dict:
         for item in node:
             if isinstance(item, dict):
                 return item
-        return {}
+        node.append({})
+        return node[len(node)-1]
     
     def to_fileset(self, root:str='') -> set:
         fileset:set = set()
@@ -116,7 +145,7 @@ class FSMock:
         else:
             path = os.path.relpath(path, 'right')
             node = FSMock.right_filetree.rootnode()
-        spath:list = path.split('/')
+        spath:list =  re.split(r'[\\/\s]+', path)
         for idx in range(0,len(spath)):
             curdir:str = spath[idx]
             if idx==len(spath)-1:
@@ -134,8 +163,6 @@ class FSMock:
                     return False
         # we should never reach this point
         return False
-
-        
 
     def _os_walk_mock_(path:str, filetree:list=None) -> list[tuple]:
         #log(f"os_walk_mock called with path: {path}")
@@ -159,6 +186,11 @@ class FSMock:
                 # this node is a file
                 files.append(node)
         result.insert(0, (cur_root, dirs, files))
+        if result:
+            # Remove last item if there is no dirs and no files in it
+            (cur_root, dirs, files) = result[-1]
+            if len(dirs)==0 and len(files)==0:
+                result.pop()
         # (root, dirs, files)
         return result
 
@@ -212,12 +244,25 @@ class TestCompareDirs:
             # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
             (testtree, [], [], [], CmpData(FSMock(testtree).to_fileset(), set(), set(), set(), set())),
-            (testtree, [], ['*.txt'], [], CmpData(set({'file2.txt', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['item/'], [], CmpData(set({'item'}), set(), set(), set(), set())),
+            (testtree, [], ['*.txt'], [], CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['file?.txt'], [], CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/file?.txt'], [], CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/file?.txt'], [], CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
             (testtree, [], ['item'], [], CmpData(set({'dir2/item'}), set(), set(), set(), set())),
+            (testtree, [], ['*/item/'], [], CmpData(set({'item'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/'], [], CmpData(set({'dir1', 'dir2/dir1'}), set(), set(), set(), set())),
+            (testtree, [], ['*/item/*'], [], CmpData(set({'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/*.txt'], [], CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/*'], [], CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/'], [], CmpData(set({'dir1'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/*.txt'], [], CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/dir11/'], [], CmpData(set({'dir1/dir11'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir2/file7/'], [], CmpData(set(), set(), set(), set(), set())),
+            (testtree, [], ['/dir2/file7'], [], CmpData(set({'dir2/file7'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir11/file5'], [], CmpData(set({'dir1/dir11/file5'}), set(), set(), set(), set())),
         ]
 
-        TestCompareDirs._execute_test_cases_(dataset)
+        TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only')
 
     def test_compare_dirs_left_only_and_equal(self):
         """
@@ -227,11 +272,12 @@ class TestCompareDirs:
             # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
             (testtree, set({'dir1/file3'}), [], [], CmpData(FSMock(testtree).to_fileset().difference({'dir1/file3'}), set(), set({'dir1/file3'}), set(), set())),
-            (testtree, set({'dir3'}), [], [], CmpData(FSMock(testtree).to_fileset().difference({'dir3'}), set(), set({'dir3'}), set(), set())),
-            (testtree, set({'dir1/file4.txt'}), ['*.txt'], [], CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt'}), set(), set())),
+            (testtree, set({'dir3/'}), [], [], CmpData(FSMock(testtree).to_fileset().difference({'dir3'}), set(), set({'dir3'}), set(), set())),
+            (testtree, set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), ['*.txt'], [], CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
+            (testtree, set({'dir1/file4.txt'}), ['*.txt'], [], CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set(), set({'dir1/file4.txt'}), set(), set())),
         ]
 
-        TestCompareDirs._execute_test_cases_(dataset)
+        TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only_and_equal')
 
     def test_compare_dirs_other(self):
         """
@@ -240,12 +286,15 @@ class TestCompareDirs:
         dataset:list = [
             # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
-            (testtree, set({'dir3', 'dir1/file4.txt'}), ['*.txt'], [], CmpData(set({'file2.txt'}), set({'dir3'}), set({'dir1/file4.txt'}), set(), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [],
+                CmpData(FSMock(testtree).to_fileset().difference({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set({'dir9', 'dir10/toto.bat'}), set({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set(), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt'}), ['*.txt'], [], CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set({'dir3'}), set({'dir1/file4.txt'}), set(), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
         ]
 
-        TestCompareDirs._execute_test_cases_(dataset)
+        TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_other')
     
-    def _execute_test_cases_(dataset:list):
+    def _execute_test_cases_(dataset:list, funcname:str):
         FSMock.install_os_mock()
         nb:int = 0
         for left_filetree, right_filetree, include, exclude, expected in dataset:
@@ -253,6 +302,6 @@ class TestCompareDirs:
             FSMock.set_os_mock_filetrees(FSMock(left_filetree), FSMock(right_filetree))
             assert TestCompareDirs.are_cmpdata_equal(
                 compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude]), expected, 'Test case #%d' % nb
+                [fnmatch.translate(x) for x in exclude]), expected, funcname+':Test case #%d' % nb
             )
         FSMock.uninstall_os_mock()

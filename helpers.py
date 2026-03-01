@@ -108,7 +108,7 @@ def file_match_regex(path:str, filename:str, regex:re.Pattern, isdir:bool) -> bo
      :return: True if the path match the regex, False otherwise
     """
     if isdir:
-        if regex.match('/'+path+'/') or regex.match(filename+'/'):
+        if regex.match('/'+path+'/'):
             return True
     elif regex.match('/'+path) or regex.match(filename):
         return True
@@ -121,7 +121,7 @@ class EfileMatch(Enum):
 
 def file_match_all_regex(path:str, filename:str, isdir:bool, exclude_re:list, include_re:list) -> EfileMatch:
     result:bool = False
-    path = '/'+path.replace('\\', '/')
+    path = path.replace('\\', '/')
     
     for exre in exclude_re:
         if file_match_regex(path, filename, exre, isdir):

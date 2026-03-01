@@ -2,7 +2,7 @@ import fnmatch
 import os
 import re
 import pytest
-from helpers import file_match_regex
+from helpers import file_match_regex, log
 
 def file_match_regex_(filepath:str, regex:str, isdir:bool) -> bool:
     return file_match_regex(filepath, os.path.basename(filepath), re.compile(regex), isdir)
@@ -37,15 +37,24 @@ class TestFileMatchRegex:
 
             # Test cases for directories
             ('dir1/dir2/toto', 'toto', True, False),
-            ('dir1/dir2/toto', 'toto/', True, True),
+            ('dir1/dir2/toto', '*/toto/', True, True),
             ('dir1/dir2/toto', '/toto/', True, False),
             ('dir1/dir2/toto', '/dir2/', True, False),
             ('dir1/dir2/toto', '*/toto/', True, True),
-            ('dir1', 'dir1/', True, True),
+            ('dir1', '*dir1/', True, True),
             ('dir1', '/dir1/', True, True),
-            ('dir1', 'dir1/*', True, True),
+            ('dir1', '*/dir1/*', True, True),
             ('dir1/dir2', '*/dir1/*', True, True),
             ('dir1/dir2_/toto', '*/dir2*/*', True, True),
         ]
+        res:bool = True
+        errors:list = []
+        nb:int = 0
         for filepath, pattern, isdir, expected in dataset:
-            assert file_match_regex_(filepath, fnmatch.translate(pattern), isdir) == expected
+            nb += 1
+            if not file_match_regex_(filepath, fnmatch.translate(pattern), isdir) == expected:
+                res = False
+                errors.append(str(nb))
+        if not res:
+            log("%d test cases failed : [%s]" % (len(errors),', '.join(errors)))
+        assert res 
