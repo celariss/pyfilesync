@@ -120,7 +120,7 @@ Example including mp4 and txt files but excluding files in any 'temp' subdir :
             "left": "~/foldertosave1/",
             "right": "/mnt/mysavedisk/rightfolder1",
             "include": ["*.txt", "*.mp4"],
-            "exclude": ["temp/"]
+            "exclude": ["*/temp/*"]
         }
     ]
 }
