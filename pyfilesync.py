@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "0.9.0"
+__version__     = "1.0.0"
 
 import argparse
 import fnmatch
@@ -193,7 +193,7 @@ def main(argv):
  > list: lists pairs in config file
  > sync: actually synchronizes folders
  > compare: (default) only shows differences between folders''', nargs='?')
-    argParser.add_argument("-p", "--pair", help="select one or more specific pair(s) by name", nargs='+', dest='pairs', default=None)
+    argParser.add_argument("-p", "--pair", help="select one (or more) specific pair(s) by name", nargs='+', dest='pairs', default=None)
     argParser.add_argument("-c", "--create", help="create target folder if needed", action='store_true')
     argParser.add_argument("-r", "--restore", help="change sync direction to restore files (right -> left)", action='store_true')
     argParser.add_argument("-i", "--ignore-target-only", help="Ignore (preserve) files found only in target folder", action='store_true')
