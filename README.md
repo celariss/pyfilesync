@@ -104,12 +104,12 @@ Expression        | Description
 :---              | :--- |
 `'*.cpp'`         | matches path for files (not dir) that have a `.cpp` filename extension
 `'book_num??.txt'`| matches paths for files (not dir) like `'book_num03.txt'` or `'book_num29.txt'`
-`'*/subDir1/*'`      | matches any path that contains a directory named `subDir` anywhere |
-`'*/subDir1/'`      | matches any directory named `subDir` anywhere (but not files inside), meaning that the dir will be created on the right, but files will not be copied |
-`'/rootDir/*'`     | matches only paths that start with `rootDir` directory |
+`'*/subDir1/*'`<BR>`'*/subDir1/'` | matches any path that contains a directory named `subDir` anywhere |
+`'/rootDir/*'`<BR>`'/rootDir/'`   | matches only paths that start with `rootDir` directory |
 `'*/subDir/*.py'`   | matches paths that contain a dir named  `subDir` and whose filename ends with `.py`
 `'/subDir1/subDir2/myfile.py'` | matches exact file path (from 'pair' base folder)
 `'/subDir1/subDir2/'` | matches exact directory path (from 'pair' base folder), and its content
+`'*/subDir2/myfile.py'` | matches partial file path
 
 
 Example including mp4 and txt files but excluding files in any 'temp' subdir :
@@ -120,7 +120,7 @@ Example including mp4 and txt files but excluding files in any 'temp' subdir :
             "left": "~/foldertosave1/",
             "right": "/mnt/mysavedisk/rightfolder1",
             "include": ["*.txt", "*.mp4"],
-            "exclude": ["*/temp/*"]
+            "exclude": ["*/temp/"]
         }
     ]
 }

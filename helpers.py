@@ -160,22 +160,25 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
             errors.add((pattern, "Invalid include regex pattern"))
             return CmpData(set(), set(), set(), set(), errors)
         
-    excluded:set = set()
+    explicitly_excluded_dirs:set = set()
+    explicitly_included_dirs:set = set()
     for root, dirs, files in os.walk(leftdir):
         must_clean_path:bool = False
         for f in dirs + files:
-            if root in excluded:
-                excluded.add(os.path.join(root, f))
+            full_path = os.path.join(root, f).replace('\\','/')
+            if root in explicitly_excluded_dirs:
+                explicitly_excluded_dirs.add(full_path)
             else:
-                full_path = os.path.join(root, f)
                 path = os.path.relpath(full_path, leftdir)
                 isdir = os.path.isdir(full_path)
                 match:EfileMatch = file_match_all_regex(path, f, isdir, exclude_re, include_re)
-                if match == EfileMatch.INCLUDED:
+                if isdir and (match == EfileMatch.INCLUDED or (root in explicitly_included_dirs)):
+                    explicitly_included_dirs.add(full_path)
+                if match == EfileMatch.INCLUDED or (match == EfileMatch.NO_MATCH and (root in explicitly_included_dirs)):
                     left_files.add(path)
                     must_clean_path:bool = True
                 elif isdir and match == EfileMatch.EXCLUDED:
-                    excluded.add(full_path)
+                    explicitly_excluded_dirs.add(full_path)                
 
         if must_clean_path:
             # we must remove parent dirs from left_files since they are already included in current path

@@ -1,3 +1,9 @@
+from __future__ import annotations # needed for python3 older than 3.14
+
+__author__      = "Jérôme Cuq"
+__copyright__   = "Copyright 2026, Jérôme Cuq"
+__license__     = "BSD-3-Clause"
+
 import fnmatch
 from pathlib import WindowsPath
 import re
@@ -249,19 +255,24 @@ class TestCompareDirs:
             (testtree, [], ['*/dir1/file?.txt'], [], CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
             (testtree, [], ['/dir1/file?.txt'], [], CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
             (testtree, [], ['item'], [], CmpData(set({'dir2/item'}), set(), set(), set(), set())),
-            (testtree, [], ['*/item/'], [], CmpData(set({'item'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/'], [], CmpData(set({'dir1', 'dir2/dir1'}), set(), set(), set(), set())),
             (testtree, [], ['*/item/*'], [], CmpData(set({'item/item2'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/*.txt'], [], CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/item/'], [], CmpData(set({'item/item2'}), set(), set(), set(), set())),
             (testtree, [], ['/dir1/*'], [], CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/'], [], CmpData(set({'dir1'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/'], [], CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/*'], [], CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/'], [], CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/*.txt'], [], CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
             (testtree, [], ['/dir1/*.txt'], [], CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/dir11/'], [], CmpData(set({'dir1/dir11'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/dir11/'], [], CmpData(set({'dir1/dir11/file5', 'dir1/dir11/file6.py'}), set(), set(), set(), set())),
             (testtree, [], ['/dir2/file7/'], [], CmpData(set(), set(), set(), set(), set())),
             (testtree, [], ['/dir2/file7'], [], CmpData(set({'dir2/file7'}), set(), set(), set(), set())),
             (testtree, [], ['*/dir11/file5'], [], CmpData(set({'dir1/dir11/file5'}), set(), set(), set(), set())),
+            (testtree, [], [], ['*/dir1/'], CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], [], ['*/dir1/*'], CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], [], ['/dir1/'], CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], [], ['/dir1/dir11/file5'], CmpData(FSMock(testtree).to_fileset().difference({'dir1/dir11/file5'}), set(), set(), set(), set()))
         ]
-
+        
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only')
 
     def test_compare_dirs_left_only_and_equal(self):
