@@ -52,7 +52,20 @@ def compile_regex(pattern:str, example_path:str) -> re.Pattern:
         return re.compile(pattern, re.IGNORECASE)
     return re.compile(pattern)
 
-def cmp_modif_times(left_ts:os.stat_result, right_ts:os.stat_result) -> bool:
+class FileProperties(object):
+     def __init__(self, st_size:int, st_mtime):
+         self.st_size = st_size
+         self.st_mtime = st_mtime
+
+def get_file_properties(path:str, errors:list = []) -> FileProperties:
+    try:
+        st:os.stat_result = os.stat(path)
+        return FileProperties(st.st_size, st.st_mtime)
+    except os.error:
+        errors.add((path, "Could not get file stats"))
+    return None
+
+def cmp_modif_times(left_ts:FileProperties, right_ts:FileProperties) -> bool:
         """ Compare modification times of two files.
         return True if left_ts is more recent than right_ts """
         return int(math.trunc(left_ts.st_mtime*100)/100 - math.trunc(right_ts.st_mtime*100)/100) != 0
@@ -206,24 +219,16 @@ def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], co
         file2 = os.path.join(rightdir, f)
         err = False
         if os.path.isfile(file1) and os.path.isfile(file2):
-            try:
-                st1 = os.stat(file1)
-            except os.error:
-                errors.add((file1, "Could not get file stats"))
-                err:True
-                continue
-            try:
-                st2 = os.stat(file2)
-            except os.error:
-                errors.add((file2, "Could not get file stats"))
-                err:True
-                continue
-
-            if not err:
+            fprop1 = get_file_properties(file1, errors)
+            fprop2 = get_file_properties(file2, errors)
+            if fprop1 and fprop2:
                 # comparison criteria to detect different files are files size and modification time (or files content if asked)
-                different = st1.st_size != st2.st_size
+                different = fprop1.st_size != fprop2.st_size
                 if not different:
-                    different = (not filecmp.cmp(file1, file2, False)) if compare_file_content else cmp_modif_times(st1, st2)
+                    if compare_file_content:
+                        different = (not filecmp.cmp(file1, file2, False))
+                    else:
+                        different = cmp_modif_times(fprop1, fprop2)
                 if different:
                     different_files.add(f)
                 else:
