@@ -1,5 +1,5 @@
 # pyfilesync
-## A python 3 script that synchronizes multiple folder pairs using a config file.
+### A python 3 script that synchronizes multiple folder pairs using a config file.
 
 
 <p align="middle">
@@ -8,26 +8,44 @@
 
 ##
 
-## Main features
+# Main features
+- tested on both Linux and Windows
 - mode of operation : one-way mirroring (left to right folder)
 - 'Compare' command : finds and prints differences between left and right folders without doing actual synchronization
 - 'sync' command for actual synchronization
-- option allowing to process a subset of folder pairs
 - 'list' command : prints all folder pairs from config file
+- 'restore' option to copy back files from right to left
+- option allowing to process a subset of folder pairs from config file
 - comparison criteria : file size and modification date (or file size and file content if requested)
 - case sensitivity of filesystem is detected to interpret include/exclude pattern correctly
 
 
-## Command line
-#### Use the following command line to show usage :
+# Command line
+Use the following command line to show usage :
 ```sh
 python pyfilesync -h
 ```
+The message shown is as follow :
+<p align="left">
+    <img src="doc/img/usage.png"/>
+</p>
 
-## Config file format
+### Compare command
+The compare command finds all differences between left and right folders of each folder pair defined in config file. It prints out the result as a summary. Use the `--verbose` option to see all files that are only left, only right and different.
+
+### sync command
+The sync command do the actual files synchronization, creating directories and copying files.
+
+### restore option
+Use `restore` option with `compare` or `sync` command to reverse synchonization direction : the files in the right folder will be compared/sync with left folder.<br>
+The default behaviour is a "clean restore" : Be aware that left only files (i.e. files that were filtered during copy operation, and that are NOT present in right folder) will be removed.<br>
+> To preserve left only files, use the `--ignore-target-only` option
+
+
+# Config file format
 A config file is a JSON file containing folder pairs to synchronize.
 
-> **Environment variables can be used in any field that receives a path, using either `$varname`, `${varname}` or `%varname%` format.**
+> **Environment variables can be used in any field that receives a path or a pattern, using either `$varname` or `${varname}` format.**
 
 A minimal example with 1 folder pair is shown below :
 ```json
@@ -71,16 +89,17 @@ An optional `global` section sets parameters that applies to all pairs :
 ```
 
 All available parameters are presented here after :
-Field name        | default<br>value | global<br>section | Description
----:              | :---:       | :---: | :---
-`left`            |             | no  | **-> mandatory**<br>left (source) folder to synchronize from. 
-`right`           |             | no  | **-> mandatory**<br>right (target) folder to synchronize to.
-`name`            |             | no  | name of the pair. only `_`, `-` and alphanumeric characters are allowed.<br>if not set, a name is automatically generated.
-`include`         | **[ '*' ]** | yes | list of **wildcard** expressions that filter the left files to synchronize.
-`exclude`         |  **[ ]**    | yes | list of **wildcard** expressions that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.
-`include_regex`   |   **[ ]**   | yes | list of **regular expressions** that filter the left files to synchronize.<br>note: `include_regex` list is appended to `include`, if any.
-`exclude_regex`     | **[ ]**   | yes | list of **regular expressions** that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
-`cmp_files_content` | **false** | yes | boolean field to force files content instead of modification times as comparison criteria<br>example: ```"cmp_files_content": true```
+Field name        | default<br>value | global<br>section | env vars<br>(*) | Description
+---:              | :---:       | :---: |:---: | :---
+`left`            |             | no  | yes | **-> mandatory**<br>left (source) folder to synchronize from.
+`right`           |             | no  | yes | **-> mandatory**<br>right (target) folder to synchronize to.
+`name`            |             | no  | no  | name of the pair. only `_`, `-` and alphanumeric characters are allowed.<br>if not set, a name is automatically generated.
+`include`         | **[ '*' ]** | yes | yes | list of **wildcard** expressions that filter the left files to synchronize.
+`exclude`         |  **[ ]**    | yes | yes | list of **wildcard** expressions that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.
+`include_regex`   |   **[ ]**   | yes | yes | list of **regular expressions** that filter the left files to synchronize.<br>note: `include_regex` list is appended to `include`, if any.
+`exclude_regex`     | **[ ]**   | yes | yes | list of **regular expressions** that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
+`cmp_files_content` | **false** | yes | no  | boolean field to force files content instead of modification times as comparison criteria<br>example: ```"cmp_files_content": true```
+> **(*) : If 'yes', use `$varname` or `${varname}` to reference an environment variable.**
 
 ### About include/exclude patterns
 - Config file may contain optional include and/or exclude patterns.

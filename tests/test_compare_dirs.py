@@ -275,32 +275,32 @@ class TestCompareDirs:
             Test cases for helpers.compare_dirs() function
         """
         dataset:list = [
-            # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
+            # each test case is : (left_filetree, right_filetree, include, exclude, file properties, ignore_right_only, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
-            (testtree, [], [], [], {}, CmpData(FSMock(testtree).to_fileset(), set(), set(), set(), set())),
-            (testtree, [], ['*.txt'], [], {}, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['file?.txt'], [], {}, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/file?.txt'], [], {}, CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/file?.txt'], [], {}, CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['item'], [], {}, CmpData(set({'dir2/item'}), set(), set(), set(), set())),
-            (testtree, [], ['*/item/*'], [], {}, CmpData(set({'item/item2'}), set(), set(), set(), set())),
-            (testtree, [], ['*/item/'], [], {}, CmpData(set({'item/item2'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/*'], [], {}, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/'], [], {}, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/*'], [], {}, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/'], [], {}, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir1/*.txt'], [], {}, CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/*.txt'], [], {}, CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/dir11/'], [], {}, CmpData(set({'dir1/dir11/file5', 'dir1/dir11/file6.py'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir2/file7/'], [], {}, CmpData(set(), set(), set(), set(), set())),
-            (testtree, [], ['/dir2/file7'], [], {}, CmpData(set({'dir2/file7'}), set(), set(), set(), set())),
-            (testtree, [], ['*/dir11/file5'], [], {}, CmpData(set({'dir1/dir11/file5'}), set(), set(), set(), set())),
-            (testtree, [], [], ['*/dir1/'], {}, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
-            (testtree, [], [], ['*/dir1/*'], {}, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
-            (testtree, [], [], ['/dir1/'], {}, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
-            (testtree, [], [], ['/dir1/dir11/file5'], {}, CmpData(FSMock(testtree).to_fileset().difference({'dir1/dir11/file5'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/'], ['*.py'], {}, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/'], ['*/dir11/'], {}, CmpData(set({'dir1/file3', 'dir1/file4.txt'}), set(), set(), set(), set()))
+            (testtree, [], [], [], {}, False, CmpData(FSMock(testtree).to_fileset(), set(), set(), set(), set())),
+            (testtree, [], ['*.txt'], [], {}, False, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['file?.txt'], [], {}, False, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/file?.txt'], [], {}, False, CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/file?.txt'], [], {}, False, CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['item'], [], {}, False, CmpData(set({'dir2/item'}), set(), set(), set(), set())),
+            (testtree, [], ['*/item/*'], [], {}, False, CmpData(set({'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], ['*/item/'], [], {}, False, CmpData(set({'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/*'], [], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/'], [], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/*'], [], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/'], [], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/dir11/file6.py', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir1/*.txt'], [], {}, False, CmpData(set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/*.txt'], [], {}, False, CmpData(set({'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/dir11/'], [], {}, False, CmpData(set({'dir1/dir11/file5', 'dir1/dir11/file6.py'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir2/file7/'], [], {}, False, CmpData(set(), set(), set(), set(), set())),
+            (testtree, [], ['/dir2/file7'], [], {}, False, CmpData(set({'dir2/file7'}), set(), set(), set(), set())),
+            (testtree, [], ['*/dir11/file5'], [], {}, False, CmpData(set({'dir1/dir11/file5'}), set(), set(), set(), set())),
+            (testtree, [], [], ['*/dir1/'], {}, False, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], [], ['*/dir1/*'], {}, False, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2'}), set(), set(), set(), set())),
+            (testtree, [], [], ['/dir1/'], {}, False, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
+            (testtree, [], [], ['/dir1/dir11/file5'], {}, False, CmpData(FSMock(testtree).to_fileset().difference({'dir1/dir11/file5'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/'], ['*.py'], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (testtree, [], ['/dir1/'], ['*/dir11/'], {}, False, CmpData(set({'dir1/file3', 'dir1/file4.txt'}), set(), set(), set(), set()))
         ]
         
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only')
@@ -310,12 +310,16 @@ class TestCompareDirs:
             Test cases for helpers.compare_dirs() function
         """
         dataset:list = [
-            # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
+            # each test case is : (left_filetree, right_filetree, include, exclude, file properties, ignore_right_only, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
-            (testtree, set({'dir1/file3'}), [], [], {}, CmpData(FSMock(testtree).to_fileset().difference({'dir1/file3'}), set(), set({'dir1/file3'}), set(), set())),
-            (testtree, set({'dir3/'}), [], [], {}, CmpData(FSMock(testtree).to_fileset().difference({'dir3'}), set(), set({'dir3'}), set(), set())),
-            (testtree, set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
-            (testtree, set({'dir1/file4.txt'}), ['*.txt'], [], {}, CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set(), set({'dir1/file4.txt'}), set(), set())),
+            (testtree, set({'dir1/file3'}), [], [], {}, False,
+                CmpData(FSMock(testtree).to_fileset().difference({'dir1/file3'}), set(), set({'dir1/file3'}), set(), set())),
+            (testtree, set({'dir3/'}), [], [], {}, False,
+                CmpData(FSMock(testtree).to_fileset().difference({'dir3'}), set(), set({'dir3'}), set(), set())),
+            (testtree, set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, False,
+                CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
+            (testtree, set({'dir1/file4.txt'}), ['*.txt'], [], {}, False,
+                CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set(), set({'dir1/file4.txt'}), set(), set())),
         ]
 
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only_and_equal')
@@ -325,13 +329,27 @@ class TestCompareDirs:
             Test cases for helpers.compare_dirs() function
         """
         dataset:list = [
-            # each test case is : (left_filetree, right_filetree, include, exclude, expected_result)
+            # each test case is : (left_filetree, right_filetree, include, exclude, file properties, ignore_right_only, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
-            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [], {},
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [], {}, False,
                 CmpData(FSMock(testtree).to_fileset().difference({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set({'dir9', 'dir10/toto.bat'}), set({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set(), set())),
-            (testtree, set({'dir3/', 'dir1/file4.txt'}), ['*.txt'], [], {}, CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set({'dir3'}), set({'dir1/file4.txt'}), set(), set())),
-            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
-            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':FileProperties(1,0)}, CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir2/dir1/file5.txt'}), set({'dir1/file4.txt'}), set()))
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [], {}, True,
+                CmpData(FSMock(testtree).to_fileset().difference({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set(), set({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set(), set())),
+            
+            (testtree, set({'dir3/', 'dir1/file4.txt'}), ['*.txt'], [], {}, False,
+                CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set({'dir3'}), set({'dir1/file4.txt'}), set(), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt'}), ['*.txt'], [], {}, True,
+                CmpData(set({'file2.txt', 'dir2/dir1/file5.txt'}), set(), set({'dir1/file4.txt'}), set(), set())),
+            
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, False,
+                CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, True,
+                CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
+            
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':FileProperties(1,0)}, False,
+                CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir2/dir1/file5.txt'}), set({'dir1/file4.txt'}), set())),
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':FileProperties(1,0)}, True,
+                CmpData(set({'file2.txt'}), set(), set({'dir2/dir1/file5.txt'}), set({'dir1/file4.txt'}), set()))
         ]
 
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_other')
@@ -339,11 +357,11 @@ class TestCompareDirs:
     def _execute_test_cases_(dataset:list, funcname:str):
         FSMock.install_os_mock()
         nb:int = 0
-        for left_filetree, right_filetree, include, exclude, fileproperties, expected in dataset:
+        for left_filetree, right_filetree, include, exclude, fileproperties, ignore_right_only, expected in dataset:
             nb += 1
             FSMock.set_os_mock_filetrees(FSMock(left_filetree), FSMock(right_filetree), fileproperties)
             assert TestCompareDirs.are_cmpdata_equal(
                 compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude]), expected, funcname+':Test case #%d' % nb
+                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
             )
         FSMock.uninstall_os_mock()

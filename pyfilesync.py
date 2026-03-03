@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# TODO
-# - Expand env vars in pattterns
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
@@ -72,7 +70,7 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     right = replace_env_variables(pair['left' if restore else 'right'])
     cmp_content = pair.get('cmp_files_content', globalconfig.cmp_files_content)
     
-    log(("Synchronizing" if action=='sync' else "Comparing") + " <"+left+"> to <"+right+">...")
+    log(("Synchronizing" if action=='sync' else "Comparing") + " '"+pair['name']+"' : <"+left+"> to <"+right+">...")
 
     if not os.path.exists(left):
          log_error("Left folder <"+left+"> does not exist")
@@ -95,16 +93,16 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     check_list(pair.get('exclude_regex', []), 'exclude_regex')
     
     # preparing the list of include regex patterns
-    includes_regex = pair.get('include_regex', []) + globalconfig.include_regex
+    includes_regex = [replace_env_variables(x) for x in (pair.get('include_regex', []) + globalconfig.include_regex)]
     # -> we use include patterns (if any) by converting them to regex
-    includes=pair.get('include', []) + globalconfig.include
+    includes=[replace_env_variables(x) for x in (pair.get('include', []) + globalconfig.include)]
     if includes:
         includes_regex.extend([r'|'.join([fnmatch.translate(x) for x in includes])])
     
     # preparing the list of exclude regex patterns
-    excludes_regex = pair.get('exclude_regex', []) + globalconfig.exclude_regex
+    excludes_regex = [replace_env_variables(x) for x in (pair.get('exclude_regex', []) + globalconfig.exclude_regex)]
     # -> we use exclude patterns (if any) by converting them to regex
-    excludes=pair.get('exclude', []) + globalconfig.exclude
+    excludes=[replace_env_variables(x) for x in (pair.get('exclude', []) + globalconfig.exclude)]
     if excludes:
         excludes_regex.extend([r'|'.join([fnmatch.translate(x) for x in excludes])])
 
