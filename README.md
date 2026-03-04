@@ -39,7 +39,7 @@ The sync command do the actual files synchronization, creating directories and c
 ### restore option
 Use `restore` option with `compare` or `sync` command to reverse synchonization direction : the files in the right folder will be compared/sync with left folder.<br>
 The default behaviour is a "clean restore" : Be aware that left only files (i.e. files that were filtered during copy operation, and that are NOT present in right folder) will be removed.<br>
-> To preserve left only files, use the `--ignore-target-only` option
+**To preserve left only files, use the `--ignore-target-only` option**
 
 
 # Config file format

@@ -5,13 +5,9 @@ __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
 import fnmatch
-from pathlib import WindowsPath
 import re
-
-import pytest
-
-from helpers import FileProperties, compare_dirs, CmpData, log
-import helpers
+from helpers import log
+from dirsyncer import *
 import os 
 
 testtree:list = [
@@ -41,10 +37,10 @@ class FSMock:
     system_os_walk  = os.walk
     system_os_isdir = os.path.isdir
     system_os_isfile = os.path.isfile
-    actual_get_file_properties = helpers.get_file_properties
+    actual_get_file_properties = DirSyncer.__get_file_properties__
     left_filetree:FSMock = None
     right_filetree:FSMock = None
-    file_properties:dict[str,FileProperties] = {}
+    file_properties:dict[str,DirSyncer.FileProperties] = {}
 
     def __init__(self, filetree):
         """ filetree can be an instance of list (tree node), FSMock or set (fileset, each item is a path to a file/dir) """
@@ -129,13 +125,13 @@ class FSMock:
         os.walk = FSMock._os_walk_mock_
         os.path.isdir = FSMock._os_isdir_mock_
         os.path.isfile = FSMock._os_isfile_mock_
-        helpers.get_file_properties = FSMock._get_file_properties_mock_
+        DirSyncer.__get_file_properties__ = FSMock._get_file_properties_mock_
 
     def uninstall_os_mock():
         os.walk = FSMock.system_os_walk
         os.path.isdir = FSMock.system_os_isdir
         os.path.isfile = FSMock.system_os_isfile
-        helpers.get_file_properties = FSMock.actual_get_file_properties
+        DirSyncer.__get_file_properties__ = FSMock.actual_get_file_properties
 
     def set_os_mock_filetrees(left_filetree:FSMock, right_filetree:FSMock, file_properties = {}):
         FSMock.left_filetree = left_filetree
@@ -192,11 +188,11 @@ class FSMock:
             return FSMock.system_os_isfile(path)
         return FSMock._os_isdirorfile_mock_(path, False)
     
-    def _get_file_properties_mock_(path:str, errors:list = []) -> FileProperties:
+    def _get_file_properties_mock_(path:str, errors:list = []) -> DirSyncer.FileProperties:
         path = path.replace('\\', '/')
         if path in FSMock.file_properties:
             return FSMock.file_properties[path]
-        return FileProperties(0,0)
+        return DirSyncer.FileProperties(0,0)
     
     def _os_walk_mock_(path:str, filetree:list=None) -> list[tuple]:
         #log(f"os_walk_mock called with path: {path}")
@@ -346,9 +342,9 @@ class TestCompareDirs:
             (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {}, True,
                 CmpData(set({'file2.txt'}), set(), set({'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set())),
             
-            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':FileProperties(1,0)}, False,
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':DirSyncer.FileProperties(1,0)}, False,
                 CmpData(set({'file2.txt'}), set({'dir3', 'dir2/file7'}), set({'dir2/dir1/file5.txt'}), set({'dir1/file4.txt'}), set())),
-            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':FileProperties(1,0)}, True,
+            (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir2/dir1/file5.txt'}), ['*.txt'], [], {'left/dir1/file4.txt':DirSyncer.FileProperties(1,0)}, True,
                 CmpData(set({'file2.txt'}), set(), set({'dir2/dir1/file5.txt'}), set({'dir1/file4.txt'}), set()))
         ]
 
@@ -361,7 +357,7 @@ class TestCompareDirs:
             nb += 1
             FSMock.set_os_mock_filetrees(FSMock(left_filetree), FSMock(right_filetree), fileproperties)
             assert TestCompareDirs.are_cmpdata_equal(
-                compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
+                DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
                 [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
             )
         FSMock.uninstall_os_mock()

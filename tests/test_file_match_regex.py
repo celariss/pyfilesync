@@ -2,10 +2,11 @@ import fnmatch
 import os
 import re
 import pytest
-from helpers import file_match_regex, log
+from helpers import log
+from dirsyncer import *
 
 def file_match_regex_(filepath:str, regex:str, isdir:bool) -> bool:
-    return file_match_regex(filepath, os.path.basename(filepath), re.compile(regex), isdir)
+    return DirSyncer.__file_match_regex__(filepath, os.path.basename(filepath), re.compile(regex), isdir)
 
 class TestFileMatchRegex:
     def test_file_match_regex(self):

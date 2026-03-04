@@ -2,59 +2,16 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "1.0.0"
+__version__     = "1.0.1"
 
 import argparse
 import fnmatch
-import sys, os, json
+import sys, os
+from syncconfig import *
 from helpers import *
+from dirsyncer import *
 
-def check_list(obj, name:str):
-    if not isinstance(obj, list):
-        log_error("Invalid config file : '"+name+"' key must be a list", True)
-    
-class GlobalConfig:
-    """Global configuration for the script, loaded from config file"""
-    def __init__(self, config: dict):
-        self.exclude:list = config.get('exclude', [])
-        self.include:list = config.get('include', [])
-        self.exclude_regex:list = config.get('exclude_regex', [])
-        self.include_regex:list = config.get('include_regex', [])
-        self.cmp_files_content:bool = config.get('cmp_files_content', False)
-        check_list(self.exclude, 'global.exclude')
-        check_list(self.include, 'global.include')
-        check_list(self.exclude_regex, 'global.exclude_regex')
-        check_list(self.include_regex, 'global.include_regex')
-
-
-def load_config(config_file: str) -> dict:
-    """load config file
-
-    :param config_file: path to config file
-    :return: config data as a dict
-    """
-    result:dict = {}
-    if not os.path.exists(config_file):
-         log_error("Config file <"+config_file+"> does not exist", True)
-
-    with open(config_file, 'r') as f:
-        try:
-            result = json.load(f)
-        except json.JSONDecodeError:
-            log_error("Config file <"+config_file+"> is not a valid JSON file", True)
-    if not isinstance(result, dict):
-        log_error("Config file <"+config_file+"> is not valid, it must contain a di[ctionary : {...}", True)
-    if 'pairs' not in result:
-        log_error("Config file <"+config_file+"> is not valid, it must contain a 'pairs' key with a list of folders pairs to synchronize", True)
-    for pair in result['pairs']:
-        if 'left' not in pair or 'right' not in pair:
-            log_error("Config file <"+config_file+"> is not valid, each pair must contain 'left' and 'right' keys", True)
-        if not isinstance(pair['left'],str) or not isinstance(pair['right'],str):
-            log_error("Config file <"+config_file+"> is not valid, 'left' and 'right' values must be strings", True)
-
-    return result
-
-def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_root: bool = False,
+def sync_folder_pair(pair:PairSection, globalconfig: GlobalSection, action: str, create_root: bool = False,
                      restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> set:
     """synchronize two folders in mirror mode (left to right only, left files remain unchanged)
 
@@ -66,11 +23,10 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     :param ignore_target_only: indicates whether the function must ignore files only in target folder, defaults to False
     :param verbose: indicates whether the function must be verbose, defaults to False
     """
-    left = replace_env_variables(pair['right' if restore else 'left'])
-    right = replace_env_variables(pair['left' if restore else 'right'])
-    cmp_content = pair.get('cmp_files_content', globalconfig.cmp_files_content)
+    left = pair.right if restore else pair.left
+    right = pair.left if restore else pair.right
     
-    log(("Synchronizing" if action=='sync' else "Comparing") + " '"+pair['name']+"' : <"+left+"> to <"+right+">...")
+    log(("Synchronizing" if action=='sync' else "Comparing") + " '"+pair.name+"' : <"+left+"> to <"+right+">...")
 
     if not os.path.exists(left):
          log_error("Left folder <"+left+"> does not exist")
@@ -86,28 +42,10 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
         else:
             log_error("Right folder <"+right+"> does not exist")
             return {(right, "Right folder  does not exist")}
-        
-    check_list(pair.get('include', []), 'include')
-    check_list(pair.get('exclude', []), 'exclude')
-    check_list(pair.get('include_regex', []), 'include_regex')
-    check_list(pair.get('exclude_regex', []), 'exclude_regex')
-    
-    # preparing the list of include regex patterns
-    includes_regex = [replace_env_variables(x) for x in (pair.get('include_regex', []) + globalconfig.include_regex)]
-    # -> we use include patterns (if any) by converting them to regex
-    includes=[replace_env_variables(x) for x in (pair.get('include', []) + globalconfig.include)]
-    if includes:
-        includes_regex.extend([r'|'.join([fnmatch.translate(x) for x in includes])])
-    
-    # preparing the list of exclude regex patterns
-    excludes_regex = [replace_env_variables(x) for x in (pair.get('exclude_regex', []) + globalconfig.exclude_regex)]
-    # -> we use exclude patterns (if any) by converting them to regex
-    excludes=[replace_env_variables(x) for x in (pair.get('exclude', []) + globalconfig.exclude)]
-    if excludes:
-        excludes_regex.extend([r'|'.join([fnmatch.translate(x) for x in excludes])])
 
     errors = set()
-    cmpres = compare_dirs(left, right, include=includes_regex, exclude=excludes_regex, compare_file_content=cmp_content, ignore_right_only=ignore_target_only)
+    cmpres:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex+globalconfig.include_regex, exclude=pair.exclude_regex+globalconfig.exclude_regex,
+                                            compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only)
     errors.update(cmpres.errors)
 
     if action=='compare':
@@ -134,7 +72,7 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
         log("    Different: %d files" % len(cmpres.different))
 
     if action=='sync':
-        syncdata:SyncData = sync_dirs(left, right, cmpres, verbose)
+        syncdata:SyncData = DirSyncer.sync_dirs(left, right, cmpres, verbose)
         errors.update( syncdata.errors )
         log("  Synchronization results:")
         log("    Copied: %d files (%d Mb)" % (syncdata.nb_copied, syncdata.size_copied/1024/1024))
@@ -144,7 +82,7 @@ def sync_folder_pair(pair:dict, globalconfig: GlobalConfig, action: str, create_
     return errors
 
     
-def sync_folders_pairs(config: dict, action: str, pairs2process:list[str], create_root:bool = False,
+def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str], create_root:bool = False,
                        restore:bool = False, ignore_target_only:bool = False, verbose: bool = False):
     """synchronize folders pairs in mirror mode (left to right only, left files remain unchanged)
 
@@ -156,22 +94,16 @@ def sync_folders_pairs(config: dict, action: str, pairs2process:list[str], creat
     :param ignore_target_only: indicates whether the function must ignore files only in target folders, defaults to False
     :param verbose: indicates whether the function must be verbose, defaults to False
     """
-    if 'global' in config:
-        globalconfig = GlobalConfig(config['global'])
-    else:
-        globalconfig = GlobalConfig({})
-    pairs:list = config.get('pairs', [])
-
     if pairs2process is not None:
         for pair_name in pairs2process:
-            if not any(pair.get('name', '') == pair_name for pair in pairs):
+            if not any(pair['name'] == pair_name for pair in config.pairs):
                 log_error("No pair with name '%s' found in config file" % pair_name, True)
                 return
 
     errors = set()
-    for pair in pairs:
-        if (not pairs2process) or (pair.get('name', '') in pairs2process):
-            errors.update(sync_folder_pair(pair, globalconfig, action, create_root, restore, ignore_target_only, verbose))
+    for pair in config.pairs:
+        if (not pairs2process) or (pair.name in pairs2process):
+            errors.update(sync_folder_pair(pair, config.globalconfig, action, create_root, restore, ignore_target_only, verbose))
             log('')
     log('All jobs done')
 
@@ -216,23 +148,13 @@ def main(argv):
     elif (args.action not in ['list', 'sync', 'compare']):
         log_error('invalid action given : '+args.action, True)
 
-    config = load_config(args.config_file)
-    if config is None:
-        log_error("Failed to load config file '%s'" % args.config_file)
-        return
-    
-    idx = 0
-    for pair in config.get('pairs', []):
-        idx += 1
-        if not 'name' in pair:
-            pair['name'] = 'pair_%d' % idx
-        pair_name = pair.get('name', '')
-        if not re.match("^[A-Za-z0-9_-]*$", pair_name):
-            log_error("Invalid pair name '%s' : pair names may only contain '-', '_' and alphanumeric characters" % pair_name, True)
-            return
+    config:SyncConfig = SyncConfig()
+    error = config.load_file(args.config_file)
+    if error:
+        log_error(error+" : "+args.config_file, True)
        
     if args.action == 'list':
-        for pair in config.get('pairs', []):
+        for pair in config.pairs:
             left = replace_env_variables(pair['left'])
             right = replace_env_variables(pair['right'])
             name = pair['name']
