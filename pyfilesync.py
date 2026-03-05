@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "1.0.1"
+__version__     = "1.0.2"
 
 import argparse
 import fnmatch
@@ -96,7 +96,7 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str], 
     """
     if pairs2process is not None:
         for pair_name in pairs2process:
-            if not any(pair['name'] == pair_name for pair in config.pairs):
+            if not any(pair.name == pair_name for pair in config.pairs):
                 log_error("No pair with name '%s' found in config file" % pair_name, True)
                 return
 
@@ -155,9 +155,9 @@ def main(argv):
        
     if args.action == 'list':
         for pair in config.pairs:
-            left = replace_env_variables(pair['left'])
-            right = replace_env_variables(pair['right'])
-            name = pair['name']
+            left = replace_env_variables(pair.left)
+            right = replace_env_variables(pair.right)
+            name = pair.name
             log('')
             log('Pair "'+name+'" : ')
             log('  | Left : '+left)

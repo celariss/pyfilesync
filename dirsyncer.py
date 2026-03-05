@@ -55,6 +55,7 @@ class DirSyncer:
         explicitly_included_dirs:set = set()
         for root, dirs, files in os.walk(leftdir):
             must_clean_path:bool = False
+            root = root.replace('\\','/')
             for f in dirs + files:
                 full_path = os.path.join(root, f).replace('\\','/')
                 if root in explicitly_excluded_dirs:
@@ -81,7 +82,7 @@ class DirSyncer:
 
         for root, dirs, files in os.walk(rightdir):
             parent = os.path.relpath(root, rightdir)
-            if  parent in right_files:
+            if  (dirs or files) and (parent in right_files):
                 right_files.remove(parent)
             for f in dirs + files:
                 path = os.path.relpath(os.path.join(root, f), rightdir)

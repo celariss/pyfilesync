@@ -41,6 +41,7 @@ class FSMock:
     left_filetree:FSMock = None
     right_filetree:FSMock = None
     file_properties:dict[str,DirSyncer.FileProperties] = {}
+    is_os_walk_mock_windows_style:bool = False
 
     def __init__(self, filetree):
         """ filetree can be an instance of list (tree node), FSMock or set (fileset, each item is a path to a file/dir) """
@@ -215,12 +216,12 @@ class FSMock:
             else:
                 # this node is a file
                 files.append(node)
+        # We convert path to windows FS style if asked
+        if FSMock.is_os_walk_mock_windows_style:
+            cur_root = cur_root.replace('/','\\')
+            dirs = [d.replace('/','\\') for d in dirs]
+            files = [f.replace('/','\\') for f in files]
         result.insert(0, (cur_root, dirs, files))
-        if result:
-            # Remove last item if there is no dirs and no files in it
-            (cur_root, dirs, files) = result[-1]
-            if len(dirs)==0 and len(files)==0:
-                result.pop()
         # (root, dirs, files)
         return result
 
@@ -296,7 +297,9 @@ class TestCompareDirs:
             (testtree, [], [], ['/dir1/'], {}, False, CmpData(set({'file2.txt', 'file1', 'dir2/file7', 'dir2/file8.ini', 'dir2/item', 'dir3', 'item/item2', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
             (testtree, [], [], ['/dir1/dir11/file5'], {}, False, CmpData(FSMock(testtree).to_fileset().difference({'dir1/dir11/file5'}), set(), set(), set(), set())),
             (testtree, [], ['/dir1/'], ['*.py'], {}, False, CmpData(set({'dir1/file3', 'dir1/dir11/file5', 'dir1/file4.txt'}), set(), set(), set(), set())),
-            (testtree, [], ['/dir1/'], ['*/dir11/'], {}, False, CmpData(set({'dir1/file3', 'dir1/file4.txt'}), set(), set(), set(), set()))
+            (testtree, [], ['/dir1/'], ['*/dir11/'], {}, False, CmpData(set({'dir1/file3', 'dir1/file4.txt'}), set(), set(), set(), set())),
+            (set({'dir1/dir2/dir3/file1', 'dir1/dir4/dir5/dir3/file2', 'dir1/dir4/dir5/dir3/dir6/', 'dir1/dir4/dir5/dir3/dir6/', 'dir2/dir3/'}), [], [], ['*/dir3/'], {}, False,
+                CmpData(set({'dir2', 'dir1/dir2', 'dir1/dir4/dir5'}), set(), set(), set(), set())),
         ]
         
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only')
@@ -327,6 +330,8 @@ class TestCompareDirs:
         dataset:list = [
             # each test case is : (left_filetree, right_filetree, include, exclude, file properties, ignore_right_only, expected_result)
             #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
+            (set({'dir1/', 'dir2/dir3/'}), set({'dir1/', 'dir2/dir3/'}), [], [], {}, False,
+                CmpData(set(), set(), set({'dir1', 'dir2/dir3'}), set(), set())),
             (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [], {}, False,
                 CmpData(FSMock(testtree).to_fileset().difference({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set({'dir9', 'dir10/toto.bat'}), set({'dir3', 'dir1/file4.txt', 'dir2/file7'}), set(), set())),
             (testtree, set({'dir3/', 'dir1/file4.txt', 'dir2/file7', 'dir9/', 'dir10/toto.bat'}), ['*'], [], {}, True,
@@ -356,6 +361,12 @@ class TestCompareDirs:
         for left_filetree, right_filetree, include, exclude, fileproperties, ignore_right_only, expected in dataset:
             nb += 1
             FSMock.set_os_mock_filetrees(FSMock(left_filetree), FSMock(right_filetree), fileproperties)
+            FSMock.is_os_walk_mock_windows_style = False
+            assert TestCompareDirs.are_cmpdata_equal(
+                DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
+                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
+            )
+            FSMock.is_os_walk_mock_windows_style = True
             assert TestCompareDirs.are_cmpdata_equal(
                 DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
                 [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
