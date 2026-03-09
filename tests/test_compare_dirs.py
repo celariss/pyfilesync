@@ -37,6 +37,9 @@ class FSMock:
     system_os_walk  = os.walk
     system_os_isdir = os.path.isdir
     system_os_isfile = os.path.isfile
+    system_os_join = os.path.join
+    system_os_relpath = os.path.relpath
+    system_os_dirname = os.path.dirname
     actual_get_file_properties = DirSyncer.__get_file_properties__
     left_filetree:FSMock = None
     right_filetree:FSMock = None
@@ -126,12 +129,18 @@ class FSMock:
         os.walk = FSMock._os_walk_mock_
         os.path.isdir = FSMock._os_isdir_mock_
         os.path.isfile = FSMock._os_isfile_mock_
+        os.path.join = FSMock._os_join_mock_
+        os.path.relpath = FSMock._os_relpath_mock_
+        os.path.dirname = FSMock._os_dirname_mock_
         DirSyncer.__get_file_properties__ = FSMock._get_file_properties_mock_
 
     def uninstall_os_mock():
         os.walk = FSMock.system_os_walk
         os.path.isdir = FSMock.system_os_isdir
         os.path.isfile = FSMock.system_os_isfile
+        os.path.join = FSMock.system_os_join
+        os.path.relpath = FSMock.system_os_relpath
+        os.path.dirname = FSMock.system_os_dirname
         DirSyncer.__get_file_properties__ = FSMock.actual_get_file_properties
 
     def set_os_mock_filetrees(left_filetree:FSMock, right_filetree:FSMock, file_properties = {}):
@@ -189,6 +198,40 @@ class FSMock:
             return FSMock.system_os_isfile(path)
         return FSMock._os_isdirorfile_mock_(path, False)
     
+    def _os_join_mock_(path1, *paths) -> str:
+         # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
+        if not isinstance(path1, str):
+            return FSMock.system_os_join(path1, *paths)
+        path1 = path1.replace('\\', os.path.sep).replace('/', os.path.sep)
+        paths2:tuple = (p.replace('\\', os.path.sep).replace('/', os.path.sep) for p in paths)
+        if FSMock.is_os_walk_mock_windows_style:
+            return FSMock.system_os_join(path1, *paths2).replace('/', '\\')
+        else:
+            return FSMock.system_os_join(path1, *paths2).replace('\\', '/')
+        
+    def _os_relpath_mock_(path1:str, path2:str) -> str:
+         # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
+        if not isinstance(path1, str):
+            return FSMock.system_os_relpath(path1, path2)
+        if FSMock.is_os_walk_mock_windows_style:
+            sep = '\\'
+        else:
+            sep = '/'
+        p1 = path1.split(sep)
+        p2 = path2.split(sep)
+        p = sep.join(p1[len(p2):])
+        return p
+        
+    def _os_dirname_mock_(path:str) -> str:
+        # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
+        if not isinstance(path, str):
+            return FSMock.system_os_dirname(path)
+        path = path.replace('\\', os.path.sep).replace('/', os.path.sep)
+        if FSMock.is_os_walk_mock_windows_style:
+            return FSMock.system_os_dirname(path).replace('/', '\\')
+        else:
+            return FSMock.system_os_dirname(path).replace('\\', '/')
+        
     def _get_file_properties_mock_(path:str, errors:list = []) -> DirSyncer.FileProperties:
         path = path.replace('\\', '/')
         if path in FSMock.file_properties:
@@ -273,7 +316,7 @@ class TestCompareDirs:
         """
         dataset:list = [
             # each test case is : (left_filetree, right_filetree, include, exclude, file properties, ignore_right_only, expected_result)
-            #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)
+            #   -> expected_result is a CmpData(left_only, right_only, equal, different, errors)            
             (testtree, [], [], [], {}, False, CmpData(FSMock(testtree).to_fileset(), set(), set(), set(), set())),
             (testtree, [], ['*.txt'], [], {}, False, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
             (testtree, [], ['file?.txt'], [], {}, False, CmpData(set({'file2.txt', 'dir1/file4.txt', 'dir2/dir1/file5.txt'}), set(), set(), set(), set())),
@@ -364,11 +407,11 @@ class TestCompareDirs:
             FSMock.is_os_walk_mock_windows_style = False
             assert TestCompareDirs.are_cmpdata_equal(
                 DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
+                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d (Linux paths)' % nb
             )
             FSMock.is_os_walk_mock_windows_style = True
             assert TestCompareDirs.are_cmpdata_equal(
                 DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d' % nb
+                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d (Windows paths)' % nb
             )
         FSMock.uninstall_os_mock()

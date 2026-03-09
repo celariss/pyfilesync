@@ -14,20 +14,16 @@ def log_error(message: str, exitScript: bool = False):
     """print an error and stop current script
 
     :param message: message to print out
-    :type message: str
     :param exitScript: indicates whether the function must call exit, defaults to True
-    :type exitScript: bool, optional
     """
     print("ERROR: "+message, file=sys.stderr)
     if exitScript:
         exit(1)
 
 def replace_env_variables(text: str) -> str:
-    """replace env variables in a text (ex: %TEMP% or $TEMP) by their value
+    """replace env variables in a text (ex: ${TEMP} or $TEMP) by their value
 
     :param text: text to replace env variables in
-    :type text: str
     :return: text with env variables replaced
-    :rtype: str
     """
     return os.path.expandvars(text)

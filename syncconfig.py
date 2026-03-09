@@ -56,10 +56,10 @@ class SyncConfig:
         self.pairs:list[PairSection] = []
 
     def load_file(self, path: str) -> str:
-        """load config file
+        """load config from file
 
-        :param config_file: path to config file
-        :return: config data as a dict
+        :param path: path to config file
+        :return: error text if any error occured
         """
         result:dict = {}
         if not os.path.exists(path):
@@ -72,6 +72,11 @@ class SyncConfig:
         return None
            
     def load_json_string(self, config:str) -> str:
+        """load config from a string
+
+        :param config: string containing the configuration in json format
+        :return: error text if any error occured
+        """
         try:
             result = json.loads(config)
         except json.JSONDecodeError:
@@ -84,6 +89,11 @@ class SyncConfig:
         return None
 
     def load_dict(self, config:dict) -> str:
+        """load config from a python dict
+
+        :param config: dict containing the configuration data
+        :return: error text if any error occured
+        """
         if 'pairs' not in config or not isinstance(config['pairs'], list):
             return ("Config file is not valid, it must contain a 'pairs' key with a list of folders pairs to synchronize")
         for paircfg in config['pairs']:
@@ -116,10 +126,14 @@ class SyncConfig:
  
     
     def check_list(obj, name:str):
+        """Check that the given object is a list, and raise SyncConfig.Error if not"""
         if not isinstance(obj, list):
             raise SyncConfig.Error("Invalid config file : '"+name+"' key must be a list")
 
     def get_patterns(config:dict, logkey:str) -> tuple[list,list]:
+        """extract and prepare include and exclude patterns
+        :return: (include_regex list, exclude_regex list)
+        """
         SyncConfig.check_list(config.get('exclude_regex', []), logkey+'.exclude_regex')
         SyncConfig.check_list(config.get('include_regex', []), logkey+'.include_regex')
         exclude_regex:list = [replace_env_variables(x) for x in config.get('exclude_regex', [])]

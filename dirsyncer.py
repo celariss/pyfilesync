@@ -1,3 +1,5 @@
+from __future__ import annotations # needed for python3 older than 3.14
+
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
@@ -9,12 +11,19 @@ from helpers import *
 
 class CmpData(object):
     """DirSync.compare_dirs() result data class"""
-    def __init__(self, left_only, right_only, equal, different, errors):
+    def __init__(self, left_only=set(), right_only=set(), equal=set(), different=set(), errors=set()):
         self.left_only:set = left_only
         self.right_only:set = right_only
         self.equal:set = equal
         self.different:set = different
         self.errors:set = errors
+
+    def update(self, data:CmpData):
+        self.left_only.update(data.left_only)
+        self.right_only.update(data.right_only)
+        self.equal.update(data.equal)
+        self.different.update(data.different)
+        self.errors.update(data.errors)
 
 class SyncData(object):
     """DirSync.sync_dirs() result data class"""
@@ -25,11 +34,24 @@ class SyncData(object):
         self.nb_deleted:int = 0
         self.size_copied:int = 0
         self.size_updated:int = 0
+    
+    def update(self, data:SyncData):
+        self.nb_copied += data.nb_copied
+        self.nb_updated += data.nb_updated
+        self.nb_deleted += data.nb_deleted
+        self.size_copied += data.size_copied
+        self.size_updated += data.size_updated
+        self.errors.update(data.errors)
 
 
 class DirSyncer:
     def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
-        """compare two directories and return a CmpData object containing the results"""
+        """compare two directories and return a CmpData object containing the results
+        
+        :param leftdir: path to the left directory
+        :param rightdir: path to the right directory
+        :param include: include filters as a list of regex
+        :param exclude: exclude filters as a list of regex"""
 
         left_files = set()
         right_files = set()
@@ -55,9 +77,8 @@ class DirSyncer:
         explicitly_included_dirs:set = set()
         for root, dirs, files in os.walk(leftdir):
             must_clean_path:bool = False
-            root = root.replace('\\','/')
             for f in dirs + files:
-                full_path = os.path.join(root, f).replace('\\','/')
+                full_path = os.path.join(root, f)
                 if root in explicitly_excluded_dirs:
                     explicitly_excluded_dirs.add(full_path)
                 else:
@@ -121,8 +142,9 @@ class DirSyncer:
             right_only = right_files.difference(common_files)
         return CmpData(left_files.difference(common_files), right_only, equal_files, different_files, errors)
 
+
     def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> SyncData:
-        """synchronize two directories according to the given CmpData results, and return a set of errors encountered during synchronization"""
+        """synchronize two directories according to the given CmpData results, and return sync results as SyncData"""
 
         syncdata:SyncData = SyncData()
 
@@ -268,12 +290,12 @@ class DirSyncer:
         return DirSyncer.EfileMatch.NO_MATCH
     
     def __is_fs_case_insensitive__(path:str) -> bool:
+        """detect whether target filesystem is case insensitive"""
         return os.path.exists(path.upper()) and os.path.exists(path.lower())
 
-    
     def __cmp_modif_times__(left_ts:FileProperties, right_ts:FileProperties) -> bool:
-            """ Compare modification times of two files.
-            return True if left_ts is more recent than right_ts """
+            """Compare modification times of two files.
+            return True if left_ts is more recent than right_ts"""
             return int(math.trunc(left_ts.st_mtime*100)/100 - math.trunc(right_ts.st_mtime*100)/100) != 0
 
     def __rm_file_or_dir__(path:str):
