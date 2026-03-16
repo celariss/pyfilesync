@@ -9,7 +9,7 @@ from helpers import *
 
 
 class GlobalSection:
-    """Global configuration for the script, loaded from config file"""
+    """Parameters in global section apply to all pair sections in configuration"""
     def __init__(self):
         self.cmp_files_content:bool = False
         self.include_regex:list[str] = []
@@ -25,6 +25,7 @@ class GlobalSection:
         
 
 class PairSection:
+    """a pair section contains synchronization parameters of a folders pair"""
     def __init__(self):
         self.name:str
         self.left:str
@@ -34,6 +35,7 @@ class PairSection:
         self.exclude_regex:list[str] = []
 
     def load(self, pairconfig: dict, globalconfig:GlobalSection) -> str:
+        """fill this instance fields from dictionary. The given global config is used to fill fields not defined in "pairconfig"."""
         self.name = pairconfig.get('name', '-')
         self.left = replace_env_variables(pairconfig['left'])
         self.right = replace_env_variables(pairconfig['right'])
