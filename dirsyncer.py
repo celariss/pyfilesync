@@ -11,18 +11,26 @@ from helpers import *
 
 class CmpData(object):
     """DirSync.compare_dirs() result data class"""
-    def __init__(self, left_only=set(), right_only=set(), equal=set(), different=set(), errors=set()):
-        self.left_only:set = left_only
-        self.right_only:set = right_only
-        self.equal:set = equal
-        self.different:set = different
+    def __init__(self, left_only_files:set=set(), left_only_empty_dirs:set=set(),
+                 right_only_files:set=set(), right_only_dirs:set=set(), right_only_files_in_dirs:set=set(),
+                 equal_files:set=set(), different_files:set=set(), errors:set=set()):
+        self.left_only_files:set = left_only_files # All files on left side that are not present on right side
+        self.left_only_empty_dirs:set = left_only_empty_dirs # empty dirs on left side that are not present on right side
+        self.right_only_files:set = right_only_files # files on right side that are not present on left side. all files present in right only dirs are not present in this set
+        self.right_only_dirs:set = right_only_dirs # dirs (empty or not) on right side that are not present on left side
+        self.right_only_files_in_dirs:set = right_only_files_in_dirs # all files present in right only dirs
+        self.equal_files:set = equal_files
+        self.different_files:set = different_files
         self.errors:set = errors
 
     def update(self, data:CmpData):
-        self.left_only.update(data.left_only)
-        self.right_only.update(data.right_only)
-        self.equal.update(data.equal)
-        self.different.update(data.different)
+        self.left_only_files.update(data.left_only_files)
+        self.left_only_empty_dirs.update(data.left_only_empty_dirs)
+        self.right_only_files.update(data.right_only_files)
+        self.right_only_dirs.update(data.right_only_dirs)
+        self.right_only_files_in_dirs.update(data.right_only_files_in_dirs)
+        self.equal_files.update(data.equal_files)
+        self.different_files.update(data.different_files)
         self.errors.update(data.errors)
 
 class SyncData(object):
@@ -53,9 +61,16 @@ class DirSyncer:
         :param include: include filters as a list of regex
         :param exclude: exclude filters as a list of regex"""
 
-        left_files = set()
-        right_files = set()
-        errors = set()
+        # left_files will receive all (filtered) files from left folder
+        left_files:set = set()
+        # left_dirs will receive all directories (with all parents) from left folder
+        left_dirs:set = set()
+        # right_files will receive all files from right folder
+        right_files:set = set()
+        # right_dirs will receive all directories (with all parents) from right folder
+        right_dirs:set = set()
+        errors:set = set()
+        left_empty_dirs:set = set()
         
         exclude_re = []
         for pattern in exclude:
@@ -76,7 +91,7 @@ class DirSyncer:
         explicitly_excluded_dirs:set = set()
         explicitly_included_dirs:set = set()
         for root, dirs, files in os.walk(leftdir):
-            must_clean_path:bool = False
+            any_content_included:bool = False
             for f in dirs + files:
                 full_path = os.path.join(root, f)
                 if root in explicitly_excluded_dirs:
@@ -88,32 +103,36 @@ class DirSyncer:
                     if isdir and (match == DirSyncer.EfileMatch.INCLUDED or (root in explicitly_included_dirs)):
                         explicitly_included_dirs.add(full_path)
                     if match == DirSyncer.EfileMatch.INCLUDED or (match == DirSyncer.EfileMatch.NO_MATCH and (root in explicitly_included_dirs)):
-                        left_files.add(path)
-                        must_clean_path:bool = True
+                        any_content_included = True
+                        parent = os.path.dirname(path)
+                        if isdir:
+                            left_dirs.add(path)
+                        else:
+                            left_dirs.add(parent)
+                            left_files.add(path)
                     elif isdir and match == DirSyncer.EfileMatch.EXCLUDED:
-                        explicitly_excluded_dirs.add(full_path)                
-
-            if must_clean_path:
-                # we must remove parent dirs from left_files since they are already included in current path
-                path_to_remove = os.path.relpath(root, leftdir)
-                while path_to_remove:
-                    if path_to_remove in left_files:
-                        left_files.remove(path_to_remove)
-                    path_to_remove = os.path.dirname(path_to_remove)
+                        explicitly_excluded_dirs.add(full_path)
+            if not any_content_included:
+                # it is an empty dir
+                dir = os.path.relpath(root, leftdir)
+                if dir in left_dirs:
+                    left_empty_dirs.add(dir)
+        
+        left_dirs = DirSyncer._expand_dirs(left_dirs)
 
         for root, dirs, files in os.walk(rightdir):
-            parent = os.path.relpath(root, rightdir)
-            if  (dirs or files) and (parent in right_files):
-                right_files.remove(parent)
-            for f in dirs + files:
+            for d in dirs:
+                path = os.path.relpath(os.path.join(root, d), rightdir)
+                right_dirs.add(path)
+            for f in files:
                 path = os.path.relpath(os.path.join(root, f), rightdir)
                 right_files.add(path)
 
-        
+        # The following variable will receive the result of folders comparison (see CmpData class)
+        cmpdata:CmpData = CmpData(equal_files=set(), right_only_files=set(), right_only_files_in_dirs=set())
+
         # Finding equal and different files
         common_files = left_files.intersection(right_files)
-        different_files:set = set()
-        equal_files:set = set()
         for f in common_files:
             file1 = os.path.join(leftdir, f)
             file2 = os.path.join(rightdir, f)
@@ -130,19 +149,32 @@ class DirSyncer:
                         else:
                             different = DirSyncer.__cmp_modif_times__(fprop1, fprop2)
                     if different:
-                        different_files.add(f)
+                        cmpdata.different_files.add(f)
                     else:
-                        equal_files.add(f)
+                        cmpdata.equal_files.add(f)
             else:
                 # it's a directory => equal
-                equal_files.add(f)
+                cmpdata.equal_files.add(f)
 
-        right_only:set = set()
+        common_dirs = left_dirs.intersection(right_dirs)
+        cmpdata.left_only_empty_dirs = left_empty_dirs.difference(right_dirs)
+        
         if not ignore_right_only:
+            right_only_all_dirs = right_dirs.difference(common_dirs)
+            #cmpdata.right_only_dirs = right_dirs.difference(left_dirs)
+            cmpdata.right_only_dirs = DirSyncer._get_roots(right_only_all_dirs)
             right_only = right_files.difference(common_files)
-        return CmpData(left_files.difference(common_files), right_only, equal_files, different_files, errors)
+            for f in right_only:
+                if os.path.dirname(f) in right_only_all_dirs:
+                    cmpdata.right_only_files_in_dirs.add(f)
+                else:
+                    cmpdata.right_only_files.add(f)
 
+        cmpdata.left_only_files = left_files.difference(common_files)
+        cmpdata.errors = errors
+        return cmpdata
 
+    
     def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> SyncData:
         """synchronize two directories according to the given CmpData results, and return sync results as SyncData"""
 
@@ -151,10 +183,10 @@ class DirSyncer:
         # First remove files/directories only in right directory,
         # to free space before copying files from left to right directory,
         # in case there is not enough free space to copy left files without deleting right files first
-        if cmp_data.right_only:
+        if cmp_data.right_only_files or cmp_data.right_only_dirs:
             if verbose:
                 log('  Only in %s' % rightdir)
-            for rightfile in cmp_data.right_only:
+            for rightfile in cmp_data.right_only_files.union(cmp_data.right_only_dirs):
                 rightpath = os.path.join(rightdir, rightfile)
                 if verbose:
                     log('   | Deleting %s' % rightpath)
@@ -174,10 +206,10 @@ class DirSyncer:
                     syncdata.nb_deleted += 1
 
         # Then update files that are different between left and right directories
-        if cmp_data.different:
+        if cmp_data.different_files:
             if verbose:
                 log('  Different in %s and %s' % (leftdir, rightdir))
-            for f in cmp_data.different:
+            for f in cmp_data.different_files:
                 leftpath = os.path.join(leftdir, f)
                 rightpath = os.path.join(rightdir, f)
                 try:
@@ -198,10 +230,10 @@ class DirSyncer:
                     syncdata.size_updated += os.stat(leftpath).st_size
 
         # At last copy files/directories only in left directory to right directory
-        if cmp_data.left_only:
+        if cmp_data.left_only_files or cmp_data.left_only_empty_dirs:
             if verbose:
                 log('  Only in %s' % leftdir)
-            for leftfile in cmp_data.left_only:
+            for leftfile in cmp_data.left_only_files.union(cmp_data.left_only_empty_dirs):
                 leftpath = os.path.join(leftdir, leftfile)
                 rightpath = os.path.join(rightdir, leftfile)
                 try:
@@ -222,7 +254,21 @@ class DirSyncer:
                     syncdata.size_copied += os.stat(leftpath).st_size
 
         return syncdata
+    
+    def _expand_dirs(dirs:set) -> set:
+        res:set = set()
+        for dir in dirs:
+            while dir != '':
+                res.add(dir)
+                dir = os.path.dirname(dir)
+        return res
 
+    def _get_roots(dirs:set) -> set:
+        res:set = set()
+        for d in dirs:
+            if not os.path.dirname(d) in dirs:
+                res.add(d)
+        return res
 
     def __compile_regex__(pattern:str, example_path:str) -> re.Pattern:
         """compile a regex pattern and return the compiled pattern, or None if the pattern is invalid
@@ -304,11 +350,13 @@ class DirSyncer:
         elif os.path.isdir(path):
             shutil.rmtree(path)
 
-    def __copy_dir_or_file__(src:str, dest:str):
+    def __copy_dir_or_file__(src:str, dest:str, copydircontent:bool = False):
         if os.path.isdir(src):
-            #shutil.copytree(src, dest)
             if not os.path.exists(dest):
-                os.mkdir(dest)
+                if copydircontent:
+                    shutil.copytree(src, dest)
+                else:
+                    os.mkdir(dest)
         else:
             destdir = os.path.dirname(dest)
             if not os.path.exists(destdir):

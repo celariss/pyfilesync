@@ -32,7 +32,7 @@ class FSTree:
                 cur_node = FSTree._find_node_(filetree, file, True)
         return FSTree(filetree)
     
-    def to_fileset(self, root:str='') -> set:
+    def to_fileset(self, root:str='', no_empty_dirs:bool = False) -> set:
         fileset:set = set()
         if root:
             root = root+'/'
@@ -40,7 +40,7 @@ class FSTree:
             if isinstance(node, dict):
                 for dir, subtree in node.items():
                     subdirs = FSTree(subtree).to_fileset(root+dir)
-                    if not subdirs:
+                    if (not subdirs) and not no_empty_dirs:
                         fileset.add(root+dir)
                     fileset.update(subdirs)
             else:
