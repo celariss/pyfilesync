@@ -11,17 +11,22 @@ from helpers import *
 
 class CmpData(object):
     """DirSync.compare_dirs() result data class"""
-    def __init__(self, left_only_files:set=set(), left_only_empty_dirs:set=set(),
-                 right_only_files:set=set(), right_only_dirs:set=set(), right_only_files_in_dirs:set=set(),
-                 equal_files:set=set(), different_files:set=set(), errors:set=set()):
-        self.left_only_files:set = left_only_files # All files on left side that are not present on right side
-        self.left_only_empty_dirs:set = left_only_empty_dirs # empty dirs on left side that are not present on right side
-        self.right_only_files:set = right_only_files # files on right side that are not present on left side. all files present in right only dirs are not present in this set
-        self.right_only_dirs:set = right_only_dirs # dirs (empty or not) on right side that are not present on left side
-        self.right_only_files_in_dirs:set = right_only_files_in_dirs # all files present in right only dirs
-        self.equal_files:set = equal_files
-        self.different_files:set = different_files
-        self.errors:set = errors
+    def __init__(self, left_only_files:set=None, left_only_empty_dirs:set=None,
+                 right_only_files:set=None, right_only_dirs:set=None, right_only_files_in_dirs:set=None,
+                 equal_files:set=None, different_files:set=None, errors:set=None):
+        # All files on left side that are not present on right side
+        self.left_only_files:set = left_only_files if left_only_files else set()
+        # empty dirs on left side that are not present on right side
+        self.left_only_empty_dirs:set = left_only_empty_dirs if left_only_empty_dirs else set()
+        # files on right side that are not present on left side. all files present in right only dirs are not present in this set
+        self.right_only_files:set = right_only_files if right_only_files else set()
+        # dirs (empty or not) on right side that are not present on left side
+        self.right_only_dirs:set = right_only_dirs if right_only_dirs else set()
+        # all files present in right only dirs
+        self.right_only_files_in_dirs:set = right_only_files_in_dirs if right_only_files_in_dirs else set()
+        self.equal_files:set = equal_files if equal_files else set()
+        self.different_files:set = different_files if different_files else set()
+        self.errors:set = errors if errors else set()
 
     def update(self, data:CmpData):
         self.left_only_files.update(data.left_only_files)
@@ -35,13 +40,14 @@ class CmpData(object):
 
 class SyncData(object):
     """DirSync.sync_dirs() result data class"""
-    def __init__(self, errors=set()):
-        self.errors:set = errors
-        self.nb_copied:int = 0
-        self.nb_updated:int = 0
-        self.nb_deleted:int = 0
-        self.size_copied:int = 0
-        self.size_updated:int = 0
+    def __init__(self, errors=None, nb_copied:int = 0,
+                 nb_updated:int = 0, nb_deleted:int = 0, size_copied:int = 0, size_updated:int = 0):
+        self.errors:set = errors if errors else set()
+        self.nb_copied:int = nb_copied
+        self.nb_updated:int = nb_updated
+        self.nb_deleted:int = nb_deleted
+        self.size_copied:int = size_copied
+        self.size_updated:int = size_updated
     
     def update(self, data:SyncData):
         self.nb_copied += data.nb_copied
@@ -53,7 +59,7 @@ class SyncData(object):
 
 
 class DirSyncer:
-    def compare_dirs(leftdir:str, rightdir:str, include:list=[], exclude:list=[], compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
+    def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
         """compare two directories and return a CmpData object containing the results
         
         :param leftdir: path to the left directory
@@ -72,6 +78,7 @@ class DirSyncer:
         errors:set = set()
         left_empty_dirs:set = set()
         
+        if not exclude: exclude = []
         exclude_re = []
         for pattern in exclude:
             try:
@@ -80,6 +87,7 @@ class DirSyncer:
                 errors.add((pattern, "Invalid exclude regex pattern"))
                 return CmpData(set(), set(), set(), set(), errors)
 
+        if not include: include = []
         include_re = []
         for pattern in include:
             try:
@@ -129,7 +137,7 @@ class DirSyncer:
                 right_files.add(path)
 
         # The following variable will receive the result of folders comparison (see CmpData class)
-        cmpdata:CmpData = CmpData(equal_files=set(), right_only_files=set(), right_only_files_in_dirs=set())
+        cmpdata:CmpData = CmpData()
 
         # Finding equal and different files
         common_files = left_files.intersection(right_files)
@@ -287,7 +295,7 @@ class DirSyncer:
          self.st_size = st_size
          self.st_mtime = st_mtime
 
-    def __get_file_properties__(path:str, errors:list = []) -> FileProperties:
+    def __get_file_properties__(path:str, errors:list) -> FileProperties:
         try:
             st:os.stat_result = os.stat(path)
             return DirSyncer.FileProperties(st.st_size, st.st_mtime)
