@@ -120,8 +120,8 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     return None
 
 
-def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSection], create_root:bool = False,
-                       restore:bool = False, ignore_target_only:bool = False, verbose: bool = False):
+def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSection] = None, create_root:bool = False,
+                       restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> bool:
     """synchronize folders pairs in mirror mode (left to right or right to left, source files remain unchanged)
 
     :param config: config data as a dict, loaded from config file
@@ -136,12 +136,14 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSe
         for pair_name in pairs2process:
             if not any(pair.name == pair_name for pair in config.pairs):
                 log_error("No pair with name '%s' found in config file" % pair_name, True)
-                return
+                return False
 
     if action=='compare':
         data = CmpData()
-    if action=='sync':
+    elif action=='sync':
         data = SyncData()
+    else:
+        return False
 
     nb_left_only:int = 0
     nb_right_only:int = 0
@@ -179,6 +181,8 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSe
                 log_error("  "+str(error[1])+" : "+str(error[0]))
         else:
             log("No error encountered")
+
+    return True
         
 
 def main(argv):
@@ -196,7 +200,7 @@ def main(argv):
     argParser.add_argument("-i", "--ignore-target-only", help="Ignore (preserve) files found only in target folder", action='store_true')
     argParser.add_argument("-v", "--verbose", help="verbose mode", action='store_true')
     argParser.add_argument("-V", "--version", help="show version and exit", action='store_true')
-    args = argParser.parse_args()
+    args = argParser.parse_args(argv)
     
     version = os.path.basename(__file__)+" "+__version__
     if args.version:
@@ -211,12 +215,14 @@ def main(argv):
     if (args.action is None):
         args.action = 'compare'
     elif (args.action not in ['list', 'sync', 'compare']):
-        log_error('invalid action given : '+args.action, True)
+        log_error('invalid action given : '+args.action)
+        return 2
 
     config:SyncConfig = SyncConfig()
     error = config.load_file(args.config_file)
     if error:
-        log_error(error+" : "+args.config_file, True)
+        log_error(error+" : "+args.config_file)
+        return 3
        
     if args.action == 'list':
         for pair in config.pairs:
@@ -228,7 +234,11 @@ def main(argv):
             log('  | Left : '+left)
             log('  | Right: '+right)
     else:
-        sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
+        res = sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
+        if not res:
+            return 4
+    
+    return 0
 
 if __name__ == "__main__":
    main(sys.argv[1:])

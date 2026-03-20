@@ -50,42 +50,42 @@ class TestCompareDirs:
         cmpdata2 = TestCompareDirs.normalize_cmpdata(cmpdata2)
         res:bool = True
         if cmpdata1.left_only_files != cmpdata2.left_only_files:
-            log(f"left_only_files differ in {label} : (1=result of compare_dirs, 2=expected result)")
+            log(f"left_only_files differs in {label} : (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.left_only_files} != ")
             log(f"2> {cmpdata2.left_only_files}")
             res = False
         if cmpdata1.left_only_empty_dirs != cmpdata2.left_only_empty_dirs:
-            log(f"left_only_empty_dirs differ in {label} : (1=result of compare_dirs, 2=expected result)")
+            log(f"left_only_empty_dirs differs in {label} : (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.left_only_empty_dirs} != ")
             log(f"2> {cmpdata2.left_only_empty_dirs}")
             res = False
         if cmpdata1.right_only_files != cmpdata2.right_only_files:
-            log(f"right_only_files differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"right_only_files differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.right_only_files} != ")
             log(f"2> {cmpdata2.right_only_files}")
             res = False
         if cmpdata1.right_only_files_in_dirs != cmpdata2.right_only_files_in_dirs:
-            log(f"right_only_files_in_dirs differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"right_only_files_in_dirs differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.right_only_files_in_dirs} != ")
             log(f"2> {cmpdata2.right_only_files_in_dirs}")
             res = False
         if cmpdata1.right_only_dirs != cmpdata2.right_only_dirs:
-            log(f"right_only_dirs differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"right_only_dirs differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.right_only_dirs} != ")
             log(f"2> {cmpdata2.right_only_dirs}")
             res = False
         if cmpdata1.equal_files != cmpdata2.equal_files:
-            log(f"equal differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"equal differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.equal_files} != ")
             log(f"2> {cmpdata2.equal_files}")
             res = False
         if cmpdata1.different_files != cmpdata2.different_files:
-            log(f"different differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"different differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.different_files} != ")
             log(f"2> {cmpdata2.different_files}")
             res = False
         if cmpdata1.errors != cmpdata2.errors:
-            log(f"errors differ in {label}: (1=result of compare_dirs, 2=expected result)")
+            log(f"errors differs in {label}: (1=result of compare_dirs, 2=expected result)")
             log(f"1> {cmpdata1.errors} != ")
             log(f"2> {cmpdata2.errors}")
             res = False
@@ -193,15 +193,12 @@ class TestCompareDirs:
         nb:int = 0
         for left_filetree, right_filetree, include, exclude, fileproperties, ignore_right_only, expected in dataset:
             nb += 1
-            FSMock.set_os_mock_filetrees(FSTree(left_filetree), FSTree(right_filetree), fileproperties)
-            FSMock.is_os_walk_mock_windows_style = False
-            assert TestCompareDirs.are_cmpdata_equal(
-                DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d (Linux paths)' % nb
-            )
-            FSMock.is_os_walk_mock_windows_style = True
-            assert TestCompareDirs.are_cmpdata_equal(
-                DirSyncer.compare_dirs('left', 'right', [fnmatch.translate(x) for x in include],
-                [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only), expected, funcname+':Test case #%d (Windows paths)' % nb
-            )
+            FSMock.set_fsmock_data(FSTree(left_filetree), FSTree(right_filetree), fileproperties)
+            for FSMock.is_os_walk_mock_windows_style in [True, False]:
+                text = 'Windows' if FSMock.is_os_walk_mock_windows_style else 'Linux'
+                compare_result = DirSyncer.compare_dirs(
+                    'left', 'right', [fnmatch.translate(x) for x in include],
+                    [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only
+                )
+                assert TestCompareDirs.are_cmpdata_equal(compare_result, expected, funcname+':Test case #%d (%s paths)' % (nb, text))
         FSMock.uninstall_os_mock()

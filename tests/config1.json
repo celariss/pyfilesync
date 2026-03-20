@@ -1,0 +1,14 @@
+{
+    "pairs" : [{
+            "name": "pair_1",
+            "left": "left1",
+            "right": "right1",
+            "include": ["*.mp4", "*.txt"]
+        },
+        {
+            "name": "pair_2",
+            "left": "left2",
+            "right": "right2"
+        }
+    ]
+}

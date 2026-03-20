@@ -7,7 +7,7 @@ __license__     = "BSD-3-Clause"
 class FSTree:
     """simulate file system content using a tree"""
     
-    def __init__(self, filetree):
+    def __init__(self, filetree=None):
         """ filetree can be an instance of list (tree node), FSMock or set (fileset, each item is a path to a file/dir) """
         self.filetree:list = None
         if isinstance(filetree, FSTree):
@@ -17,6 +17,8 @@ class FSTree:
             self.filetree = FSTree.from_fileset(filetree).rootnode()
         elif isinstance(filetree, list):
             self.filetree = filetree
+        else:
+            self.filetree = []
 
     def rootnode(self) -> list:
         return self.filetree
