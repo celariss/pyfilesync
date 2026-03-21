@@ -58,6 +58,9 @@ class FSMock:
         shutil.copy2 = FSMock._shutil_copy2
         os.stat = FSMock._os_stat
         DirSyncer.__get_file_properties__ = FSMock._get_file_properties_mock_
+        FSMock.left_filetree = FSTree()
+        FSMock.right_filetree = FSTree()
+        FSMock.file_properties = {}
 
     def uninstall_os_mock():
         os.walk = FSMock.system_os_walk

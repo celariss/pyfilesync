@@ -11,12 +11,81 @@ from syncconfig import *
 from helpers import *
 from dirsyncer import *
 
+
+class FolderPairsSyncResults:
+    def __init__(self):
+        self.pairs_cmpdata:dict[str,tuple[PairSection,CmpData]] = {}
+        self.pairs_syncdata:dict[str,tuple[PairSection,SyncData]] = {}
+        
+        # cumulated results of all pairs
+        self.cmpdata = CmpData()
+        self.syncdata = SyncData()
+        self.errors:list = []
+        self.nb_left_only:int = 0
+        self.nb_right_only:int = 0
+        self.nb_equal:int = 0
+        self.nb_different:int = 0
+        self.success:bool = True
+
+
 def set_root_dir(data:set, root:str) -> set:
     return set({os.path.join(root,e) for e in data})
-    
+
+
+def log_compare_result(cmpdata, verbose):
+    if verbose:
+        if cmpdata.left_only_files or cmpdata.left_only_empty_dirs:
+            log("  Files only in left folder:")
+            for f in sorted(cmpdata.left_only_files):
+                log("   | ."+os.path.sep+f)
+            for f in sorted(cmpdata.left_only_empty_dirs):
+                log("   | ."+os.path.sep+f+os.path.sep)
+            log('')
+        if cmpdata.right_only_files or cmpdata.right_only_dirs:
+            log("  Files only in right folder:")
+            for f in sorted(cmpdata.right_only_files):
+                log("   | ."+os.path.sep+f)
+            for f in sorted(cmpdata.right_only_dirs):
+                log("   | ."+os.path.sep+f+os.path.sep)
+            log('')
+        if cmpdata.different_files:
+            log("  Files that are different between left and right folders:")
+            for f in sorted(cmpdata.different_files):
+                log("   | ."+os.path.sep+f)
+            log('')
+    log("  Comparison results:")
+    blog = False
+    nbfiles = len(cmpdata.left_only_files)+len(cmpdata.left_only_empty_dirs)
+    if nbfiles:
+        blog = True
+        log("    Left only: %d files" % nbfiles)
+    nbfiles = len(cmpdata.right_only_files)+len(cmpdata.right_only_files_in_dirs)+len(cmpdata.right_only_dirs)
+    if nbfiles:
+        blog = True
+        log("    Right only: %d files" % nbfiles)
+    if len(cmpdata.equal_files):
+        blog = True
+        log("    Equal: %d files" % len(cmpdata.equal_files))
+    if len(cmpdata.different_files):
+        blog = True
+        log("    Different: %d files" % len(cmpdata.different_files))
+    if not blog:
+        log('    -- No files found in source ! --')
+
+
+def log_sync_result(syncdata, verbose):
+    if syncdata.nb_copied or syncdata.nb_updated or syncdata.nb_deleted:
+        log("  Synchronization results:")
+        if syncdata.nb_copied:
+            log("    Copied: %d files (%d Mb)" % (syncdata.nb_copied, syncdata.size_copied/1024/1024))
+        if syncdata.nb_updated:
+            log("    Updated: %d files (%d Mb)" % (syncdata.nb_updated, syncdata.size_updated/1024/1024))
+        if syncdata.nb_deleted:
+            log("    Deleted: %d files" % syncdata.nb_deleted)
+
 
 def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
-                     restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> CmpData|SyncData:
+                     restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> tuple[CmpData,SyncData]:
     """synchronize two folders in mirror mode (left to right or right to left, source files remain unchanged)
 
     :param pair: pair section containing parameters for a folder pair
@@ -49,52 +118,15 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     
     if errors:
         if action=='compare':
-            return CmpData(errors=errors)
+            return (CmpData(errors=errors), None)
         if action=='sync':
-            return SyncData(errors=errors)
+            return (CmpData(errors=errors), SyncData())
 
     cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex, exclude=pair.exclude_regex,
                                             compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only)
 
     if action=='compare':
-        if verbose:
-            if cmpdata.left_only_files or cmpdata.left_only_empty_dirs:
-                log("  Files only in left folder:")
-                for f in sorted(cmpdata.left_only_files):
-                    log("   | ."+os.path.sep+f)
-                for f in sorted(cmpdata.left_only_empty_dirs):
-                    log("   | ."+os.path.sep+f+os.path.sep)
-                log('')
-            if cmpdata.right_only_files or cmpdata.right_only_dirs:
-                log("  Files only in right folder:")
-                for f in sorted(cmpdata.right_only_files):
-                    log("   | ."+os.path.sep+f)
-                for f in sorted(cmpdata.right_only_dirs):
-                    log("   | ."+os.path.sep+f+os.path.sep)
-                log('')
-            if cmpdata.different_files:
-                log("  Files that are different between left and right folders:")
-                for f in sorted(cmpdata.different_files):
-                    log("   | ."+os.path.sep+f)
-                log('')
-        log("  Comparison results:")
-        blog = False
-        nbfiles = len(cmpdata.left_only_files)+len(cmpdata.left_only_empty_dirs)
-        if nbfiles:
-            blog = True
-            log("    Left only: %d files" % nbfiles)
-        nbfiles = len(cmpdata.right_only_files)+len(cmpdata.right_only_files_in_dirs)+len(cmpdata.right_only_dirs)
-        if nbfiles:
-            blog = True
-            log("    Right only: %d files" % nbfiles)
-        if len(cmpdata.equal_files):
-            blog = True
-            log("    Equal: %d files" % len(cmpdata.equal_files))
-        if len(cmpdata.different_files):
-            blog = True
-            log("    Different: %d files" % len(cmpdata.different_files))
-        if not blog:
-            log('    -- No files found in source ! --')
+        log_compare_result(cmpdata, verbose)
         cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
         cmpdata.left_only_empty_dirs = set_root_dir(cmpdata.left_only_empty_dirs, left)
         cmpdata.right_only_dirs = set_root_dir(cmpdata.right_only_dirs, right)
@@ -102,22 +134,15 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
         cmpdata.right_only_files_in_dirs = set_root_dir(cmpdata.right_only_files_in_dirs, right)
         cmpdata.equal_files = set_root_dir(cmpdata.equal_files, left)
         cmpdata.different_files = set_root_dir(cmpdata.different_files, left)
-        return cmpdata
+        return (cmpdata, None)
 
     if action=='sync':
         syncdata:SyncData = DirSyncer.sync_dirs(left, right, cmpdata, verbose)
         syncdata.errors.update(cmpdata.errors)
-        if syncdata.nb_copied or syncdata.nb_updated or syncdata.nb_deleted:
-            log("  Synchronization results:")
-            if syncdata.nb_copied:
-                log("    Copied: %d files (%d Mb)" % (syncdata.nb_copied, syncdata.size_copied/1024/1024))
-            if syncdata.nb_updated:
-                log("    Updated: %d files (%d Mb)" % (syncdata.nb_updated, syncdata.size_updated/1024/1024))
-            if syncdata.nb_deleted:
-                log("    Deleted: %d files" % syncdata.nb_deleted)
-        return syncdata
+        log_sync_result(syncdata, verbose)
+        return (cmpdata, syncdata)
     
-    return None
+    return (None, None)
 
 
 def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSection] = None, create_root:bool = False,
@@ -132,57 +157,63 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSe
     :param ignore_target_only: indicates whether the function must ignore files only in target folders, defaults to False
     :param verbose: indicates whether the function must be verbose, defaults to False
     """
+    res:FolderPairsSyncResults = FolderPairsSyncResults()
+
     if pairs2process is not None:
         for pair_name in pairs2process:
             if not any(pair.name == pair_name for pair in config.pairs):
-                log_error("No pair with name '%s' found in config file" % pair_name, True)
-                return False
+                text = "No pair with name '%s' found in config file" % pair_name
+                log_error(text)
+                res.errors.append(text)
+                res.success = False
+                return res
 
-    if action=='compare':
-        data = CmpData()
-    elif action=='sync':
-        data = SyncData()
-    else:
-        return False
-
-    nb_left_only:int = 0
-    nb_right_only:int = 0
-    nb_equal:int = 0
-    nb_different:int = 0
+    
+    if action not in ['compare', 'sync']:
+        text = "Invalid action given : '%s'" % action
+        log_error(text)
+        res.errors.append(text)
+        res.success = False
+        return res
 
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
-            pair_data= sync_folder_pair(pair, action, create_root, restore, ignore_target_only, verbose)
-            if action=='compare':
-                nb_left_only  += len(pair_data.left_only_files)+len(pair_data.left_only_empty_dirs)
-                nb_right_only += len(pair_data.right_only_files)+len(pair_data.right_only_files_in_dirs)+len(pair_data.right_only_dirs)
-                nb_equal      += len(pair_data.equal_files)
-                nb_different  += len(pair_data.different_files)
-            data.update(pair_data)
+            (pair_cmpdata, pair_syncdata) = sync_folder_pair(pair, action, create_root, restore, ignore_target_only, verbose)
+            res.nb_left_only  += len(pair_cmpdata.left_only_files)+len(pair_cmpdata.left_only_empty_dirs)
+            res.nb_right_only += len(pair_cmpdata.right_only_files)+len(pair_cmpdata.right_only_files_in_dirs)+len(pair_cmpdata.right_only_dirs)
+            res.nb_equal      += len(pair_cmpdata.equal_files)
+            res.nb_different  += len(pair_cmpdata.different_files)
+            res.cmpdata.update(pair_cmpdata)
+            res.errors.extend(pair_cmpdata.errors)
+            res.pairs_cmpdata[pair.name] = (pair, pair_cmpdata)
+            if action=='sync':
+                res.syncdata.update(pair_syncdata)
+                res.errors.extend(pair_syncdata.errors)
+                res.pairs_syncdata[pair.name] = (pair, pair_syncdata)
             log('')
     
     log('All jobs done, statistics :')
     if action=='compare':
-        log("  Left only: %d files" % nb_left_only)
-        log("  Right only: %d files" % nb_right_only)
-        log("  Equal: %d files" % nb_equal)
-        log("  Different: %d files" % nb_different)
+        log("  Left only: %d files" % res.nb_left_only)
+        log("  Right only: %d files" % res.nb_right_only)
+        log("  Equal: %d files" % res.nb_equal)
+        log("  Different: %d files" % res.nb_different)
 
     if action=='sync':
-        log("  Copied: %d files (%d Mb)" % (data.nb_copied, data.size_copied/1024/1024))
-        log("  Updated: %d files (%d Mb)" % (data.nb_updated, data.size_updated/1024/1024))
-        log("  Deleted: %d files" % data.nb_deleted)
+        log("  Copied: %d files (%d Mb)" % (res.syncdata.nb_copied, res.syncdata.size_copied/1024/1024))
+        log("  Updated: %d files (%d Mb)" % (res.syncdata.nb_updated, res.syncdata.size_updated/1024/1024))
+        log("  Deleted: %d files" % res.syncdata.nb_deleted)
 
     if verbose:
         log('')
-        if data.errors:
-            log_error("%d errors encountered during comparison/synchronization :" % len(data.errors))
-            for error in data.errors:
+        if res.errors:
+            log_error("%d errors encountered during comparison/synchronization :" % len(res.errors))
+            for error in res.errors:
                 log_error("  "+str(error[1])+" : "+str(error[0]))
         else:
             log("No error encountered")
 
-    return True
+    return res
         
 
 def main(argv):
@@ -235,7 +266,7 @@ def main(argv):
             log('  | Right: '+right)
     else:
         res = sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
-        if not res:
+        if not res.success:
             return 4
     
     return 0

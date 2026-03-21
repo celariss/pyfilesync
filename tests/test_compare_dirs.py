@@ -5,6 +5,7 @@ __license__     = "BSD-3-Clause"
 import fnmatch
 from helpers import log
 from dirsyncer import *
+from tests.common import are_cmpdata_equal
 from tests.fsmock import FSMock
 from tests.fstree import FSTree
 
@@ -32,65 +33,6 @@ testtree:list = [
 ]
 
 class TestCompareDirs:
-    
-    def normalize_cmpdata(cmpdata:CmpData) -> CmpData:
-        return CmpData(
-            left_only_files = set({item.replace('\\','/') for item in cmpdata.left_only_files}),
-            left_only_empty_dirs = set({item.replace('\\','/') for item in cmpdata.left_only_empty_dirs}),
-            right_only_files = set({item.replace('\\','/') for item in cmpdata.right_only_files}),
-            right_only_dirs = set({item.replace('\\','/') for item in cmpdata.right_only_dirs}),
-            right_only_files_in_dirs = set({item.replace('\\','/') for item in cmpdata.right_only_files_in_dirs}),
-            equal_files = set({item.replace('\\','/') for item in cmpdata.equal_files}),
-            different_files = set({item.replace('\\','/') for item in cmpdata.different_files}),
-            errors = cmpdata.errors
-        )
-    
-    def are_cmpdata_equal(cmpdata1:CmpData, cmpdata2:CmpData, label:str) -> bool:
-        cmpdata1 = TestCompareDirs.normalize_cmpdata(cmpdata1)
-        cmpdata2 = TestCompareDirs.normalize_cmpdata(cmpdata2)
-        res:bool = True
-        if cmpdata1.left_only_files != cmpdata2.left_only_files:
-            log(f"left_only_files differs in {label} : (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.left_only_files} != ")
-            log(f"2> {cmpdata2.left_only_files}")
-            res = False
-        if cmpdata1.left_only_empty_dirs != cmpdata2.left_only_empty_dirs:
-            log(f"left_only_empty_dirs differs in {label} : (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.left_only_empty_dirs} != ")
-            log(f"2> {cmpdata2.left_only_empty_dirs}")
-            res = False
-        if cmpdata1.right_only_files != cmpdata2.right_only_files:
-            log(f"right_only_files differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.right_only_files} != ")
-            log(f"2> {cmpdata2.right_only_files}")
-            res = False
-        if cmpdata1.right_only_files_in_dirs != cmpdata2.right_only_files_in_dirs:
-            log(f"right_only_files_in_dirs differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.right_only_files_in_dirs} != ")
-            log(f"2> {cmpdata2.right_only_files_in_dirs}")
-            res = False
-        if cmpdata1.right_only_dirs != cmpdata2.right_only_dirs:
-            log(f"right_only_dirs differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.right_only_dirs} != ")
-            log(f"2> {cmpdata2.right_only_dirs}")
-            res = False
-        if cmpdata1.equal_files != cmpdata2.equal_files:
-            log(f"equal differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.equal_files} != ")
-            log(f"2> {cmpdata2.equal_files}")
-            res = False
-        if cmpdata1.different_files != cmpdata2.different_files:
-            log(f"different differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.different_files} != ")
-            log(f"2> {cmpdata2.different_files}")
-            res = False
-        if cmpdata1.errors != cmpdata2.errors:
-            log(f"errors differs in {label}: (1=result of compare_dirs, 2=expected result)")
-            log(f"1> {cmpdata1.errors} != ")
-            log(f"2> {cmpdata2.errors}")
-            res = False
-        return res
-    
     def test_compare_dirs_left_only(self):
         """
             Test cases for helpers.compare_dirs() function
@@ -200,5 +142,5 @@ class TestCompareDirs:
                     'left', 'right', [fnmatch.translate(x) for x in include],
                     [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only
                 )
-                assert TestCompareDirs.are_cmpdata_equal(compare_result, expected, funcname+':Test case #%d (%s paths)' % (nb, text))
+                assert are_cmpdata_equal(compare_result, expected, funcname+':Test case #%d (%s paths)' % (nb, text))
         FSMock.uninstall_os_mock()
