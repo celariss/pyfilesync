@@ -13,7 +13,7 @@ class CmpData(object):
     """DirSync.compare_dirs() result data class"""
     def __init__(self, left_only_files:set=None, left_only_empty_dirs:set=None,
                  right_only_files:set=None, right_only_dirs:set=None, right_only_files_in_dirs:set=None,
-                 equal_files:set=None, different_files:set=None, errors:set=None):
+                 equal_files:set=None, different_files:set=None, errors:set=None, warnings:set=None):
         # All files on left side that are not present on right side
         self.left_only_files:set = left_only_files if left_only_files else set()
         # empty dirs on left side that are not present on right side
@@ -26,7 +26,10 @@ class CmpData(object):
         self.right_only_files_in_dirs:set = right_only_files_in_dirs if right_only_files_in_dirs else set()
         self.equal_files:set = equal_files if equal_files else set()
         self.different_files:set = different_files if different_files else set()
+        # each item is a tuple[target, error_text]
         self.errors:set = errors if errors else set()
+        # each item is a tuple[target, warning_text]
+        self.warnings:set = warnings if warnings else set()
 
     def update(self, data:CmpData):
         self.left_only_files.update(data.left_only_files)
@@ -37,12 +40,13 @@ class CmpData(object):
         self.equal_files.update(data.equal_files)
         self.different_files.update(data.different_files)
         self.errors.update(data.errors)
+        self.warnings.update(data.warnings)
 
 class SyncData(object):
     """DirSync.sync_dirs() result data class"""
-    def __init__(self, errors=None, nb_copied:int = 0,
-                 nb_updated:int = 0, nb_deleted:int = 0, size_copied:int = 0, size_updated:int = 0):
-        self.errors:set = errors if errors else set()
+    def __init__(self, nb_copied:int = 0,
+                 nb_updated:int = 0, nb_deleted:int = 0, size_copied:int = 0, size_updated:int = 0, warnings:set=None):
+        self.warnings:set = warnings if warnings else set()
         self.nb_copied:int = nb_copied
         self.nb_updated:int = nb_updated
         self.nb_deleted:int = nb_deleted
@@ -55,7 +59,7 @@ class SyncData(object):
         self.nb_deleted += data.nb_deleted
         self.size_copied += data.size_copied
         self.size_updated += data.size_updated
-        self.errors.update(data.errors)
+        self.warnings.update(data.warnings)
 
 
 class DirSyncer:
@@ -75,7 +79,7 @@ class DirSyncer:
         right_files:set = set()
         # right_dirs will receive all directories (with all parents) from right folder
         right_dirs:set = set()
-        errors:set = set()
+        warnings:set = set()
         left_empty_dirs:set = set()
         
         if not exclude: exclude = []
@@ -84,8 +88,7 @@ class DirSyncer:
             try:
                 exclude_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                errors.add((pattern, "Invalid exclude regex pattern"))
-                return CmpData(set(), set(), set(), set(), errors)
+                return CmpData(errors=set({(pattern, "Invalid exclude regex pattern")}))
 
         if not include: include = []
         include_re = []
@@ -93,8 +96,7 @@ class DirSyncer:
             try:
                 include_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                errors.add((pattern, "Invalid include regex pattern"))
-                return CmpData(set(), set(), set(), set(), errors)
+                return CmpData(errors=set({(pattern, "Invalid include regex pattern")}))
             
         explicitly_excluded_dirs:set = set()
         explicitly_included_dirs:set = set()
@@ -146,8 +148,8 @@ class DirSyncer:
             file2 = os.path.join(rightdir, f)
             err = False
             if os.path.isfile(file1) and os.path.isfile(file2):
-                fprop1 = DirSyncer.__get_file_properties__(file1, errors)
-                fprop2 = DirSyncer.__get_file_properties__(file2, errors)
+                fprop1 = DirSyncer.__get_file_properties__(file1, warnings)
+                fprop2 = DirSyncer.__get_file_properties__(file2, warnings)
                 if fprop1 and fprop2:
                     # comparison criteria to detect different files are files size and modification time (or files content if asked)
                     different = fprop1.st_size != fprop2.st_size
@@ -179,7 +181,7 @@ class DirSyncer:
                     cmpdata.right_only_files.add(f)
 
         cmpdata.left_only_files = left_files.difference(common_files)
-        cmpdata.errors = errors
+        cmpdata.warnings = warnings
         return cmpdata
 
     
@@ -208,7 +210,7 @@ class DirSyncer:
                             DirSyncer.__rm_file_or_dir__(rightpath)
                 except Exception as e:
                     log_error('  '+str(e))
-                    syncdata.errors.add((rightpath, str(e)))
+                    syncdata.warnings.add((rightpath, str(e)))
                     continue
                 else:
                     syncdata.nb_deleted += 1
@@ -231,7 +233,7 @@ class DirSyncer:
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
                     log_error('  '+str(e))
-                    syncdata.errors.add((f, str(e)))
+                    syncdata.warnings.add((f, str(e)))
                     continue
                 else:
                     syncdata.nb_updated += 1
@@ -255,7 +257,7 @@ class DirSyncer:
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
                     log_error('  '+str(e))
-                    syncdata.errors.add((leftfile, str(e)))
+                    syncdata.warnings.add((leftfile, str(e)))
                     continue
                 else:
                     syncdata.nb_copied += 1
@@ -295,12 +297,12 @@ class DirSyncer:
          self.st_size = st_size
          self.st_mtime = st_mtime
 
-    def __get_file_properties__(path:str, errors:list) -> FileProperties:
+    def __get_file_properties__(path:str, warnings:set) -> FileProperties:
         try:
             st:os.stat_result = os.stat(path)
             return DirSyncer.FileProperties(st.st_size, st.st_mtime)
         except os.error:
-            errors.add((path, "Could not get file stats"))
+            warnings.add((path, "Could not get file stats"))
         return None
 
     

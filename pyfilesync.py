@@ -20,12 +20,26 @@ class FolderPairsSyncResults:
         # cumulated results of all pairs
         self.cmpdata = CmpData()
         self.syncdata = SyncData()
-        self.errors:list = []
+        self.errors:set = set()
+        self.warnings:set = set()
         self.nb_left_only:int = 0
         self.nb_right_only:int = 0
         self.nb_equal:int = 0
         self.nb_different:int = 0
-        self.success:bool = True
+
+    def update(self, pair:PairSection, pair_cmpdata:CmpData, pair_syncdata:SyncData):
+        self.nb_left_only  += len(pair_cmpdata.left_only_files)+len(pair_cmpdata.left_only_empty_dirs)
+        self.nb_right_only += len(pair_cmpdata.right_only_files)+len(pair_cmpdata.right_only_files_in_dirs)+len(pair_cmpdata.right_only_dirs)
+        self.nb_equal      += len(pair_cmpdata.equal_files)
+        self.nb_different  += len(pair_cmpdata.different_files)
+        self.cmpdata.update(pair_cmpdata)
+        self.errors.update(pair_cmpdata.errors)
+        self.warnings.update(pair_cmpdata.warnings)
+        self.pairs_cmpdata[pair.name] = (pair, pair_cmpdata)
+        if pair_syncdata:
+            self.syncdata.update(pair_syncdata)
+            self.warnings.update(pair_syncdata.warnings)
+            self.pairs_syncdata[pair.name] = (pair, pair_syncdata)
 
 
 def set_root_dir(data:set, root:str) -> set:
@@ -103,7 +117,7 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     errors = None
     if not os.path.exists(left):
          log_error("Left folder <"+left+"> does not exist")
-         errors={(left, "Left folder does not exist")}
+         errors=set({(left, "Left folder does not exist")})
 
     elif not os.path.exists(right):
         if create_root:
@@ -111,41 +125,37 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
                 os.makedirs(right)
             except Exception as e:
                 log_error("Could not create right folder : "+right)
-                errors={(right, str(e))}
+                errors=set({(right, str(e))})
         else:
             log_error("Right folder <"+right+"> does not exist")
-            errors={(right, "Right folder  does not exist")}
+            errors=set({(right, "Right folder  does not exist")})
     
     if errors:
-        if action=='compare':
-            return (CmpData(errors=errors), None)
-        if action=='sync':
-            return (CmpData(errors=errors), SyncData())
+        return (CmpData(errors=errors), None)
 
     cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex, exclude=pair.exclude_regex,
                                             compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only)
 
     if action=='compare':
         log_compare_result(cmpdata, verbose)
-        cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
-        cmpdata.left_only_empty_dirs = set_root_dir(cmpdata.left_only_empty_dirs, left)
-        cmpdata.right_only_dirs = set_root_dir(cmpdata.right_only_dirs, right)
-        cmpdata.right_only_files = set_root_dir(cmpdata.right_only_files, right)
-        cmpdata.right_only_files_in_dirs = set_root_dir(cmpdata.right_only_files_in_dirs, right)
-        cmpdata.equal_files = set_root_dir(cmpdata.equal_files, left)
-        cmpdata.different_files = set_root_dir(cmpdata.different_files, left)
-        return (cmpdata, None)
-
-    if action=='sync':
-        syncdata:SyncData = DirSyncer.sync_dirs(left, right, cmpdata, verbose)
-        syncdata.errors.update(cmpdata.errors)
-        log_sync_result(syncdata, verbose)
-        return (cmpdata, syncdata)
     
-    return (None, None)
+    syncdata:SyncData = None
+    if action=='sync' and not cmpdata.errors:
+        syncdata = DirSyncer.sync_dirs(left, right, cmpdata, verbose)
+        log_sync_result(syncdata, verbose)
+    
+    cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
+    cmpdata.left_only_empty_dirs = set_root_dir(cmpdata.left_only_empty_dirs, left)
+    cmpdata.right_only_dirs = set_root_dir(cmpdata.right_only_dirs, right)
+    cmpdata.right_only_files = set_root_dir(cmpdata.right_only_files, right)
+    cmpdata.right_only_files_in_dirs = set_root_dir(cmpdata.right_only_files_in_dirs, right)
+    cmpdata.equal_files = set_root_dir(cmpdata.equal_files, left)
+    cmpdata.different_files = set_root_dir(cmpdata.different_files, left)
+    
+    return (cmpdata, syncdata)
 
 
-def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSection] = None, create_root:bool = False,
+def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] = None, create_root:bool = False,
                        restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> bool:
     """synchronize folders pairs in mirror mode (left to right or right to left, source files remain unchanged)
 
@@ -164,32 +174,20 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSe
             if not any(pair.name == pair_name for pair in config.pairs):
                 text = "No pair with name '%s' found in config file" % pair_name
                 log_error(text)
-                res.errors.append(text)
-                res.success = False
+                res.errors.add((pair_name, text))
                 return res
 
     
     if action not in ['compare', 'sync']:
         text = "Invalid action given : '%s'" % action
         log_error(text)
-        res.errors.append(text)
-        res.success = False
+        res.errors.add((action, text))
         return res
 
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
             (pair_cmpdata, pair_syncdata) = sync_folder_pair(pair, action, create_root, restore, ignore_target_only, verbose)
-            res.nb_left_only  += len(pair_cmpdata.left_only_files)+len(pair_cmpdata.left_only_empty_dirs)
-            res.nb_right_only += len(pair_cmpdata.right_only_files)+len(pair_cmpdata.right_only_files_in_dirs)+len(pair_cmpdata.right_only_dirs)
-            res.nb_equal      += len(pair_cmpdata.equal_files)
-            res.nb_different  += len(pair_cmpdata.different_files)
-            res.cmpdata.update(pair_cmpdata)
-            res.errors.extend(pair_cmpdata.errors)
-            res.pairs_cmpdata[pair.name] = (pair, pair_cmpdata)
-            if action=='sync':
-                res.syncdata.update(pair_syncdata)
-                res.errors.extend(pair_syncdata.errors)
-                res.pairs_syncdata[pair.name] = (pair, pair_syncdata)
+            res.update(pair, pair_cmpdata, pair_syncdata)
             log('')
     
     log('All jobs done, statistics :')
@@ -206,6 +204,12 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[PairSe
 
     if verbose:
         log('')
+        if res.warnings:
+            log_error("%d warnings encountered during comparison/synchronization :" % len(res.warnings))
+            for warning in res.warnings:
+                log_error("  "+str(warning[1])+" : "+str(warning[0]))
+        else:
+            log("No warning encountered")
         if res.errors:
             log_error("%d errors encountered during comparison/synchronization :" % len(res.errors))
             for error in res.errors:
@@ -266,7 +270,7 @@ def main(argv):
             log('  | Right: '+right)
     else:
         res = sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
-        if not res.success:
+        if res.errors:
             return 4
     
     return 0

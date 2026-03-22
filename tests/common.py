@@ -5,6 +5,12 @@ __license__     = "BSD-3-Clause"
 from helpers import log
 from dirsyncer import *
 
+def check_errors_format(err:set) -> bool:
+    for value in err:
+        if not isinstance(value, tuple) or len(value)!=2:
+            return False
+    return True
+
 
 def normalize_cmpdata(cmpdata:CmpData) -> CmpData:
     return CmpData(

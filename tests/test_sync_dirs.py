@@ -9,10 +9,10 @@ from tests.fsmock import FSMock
 class TestSyncDirs:
     def are_syncdata_equal(syncdata1:CmpData, syncdata2:CmpData, label:str) -> bool:
         res:bool = True
-        if syncdata1.errors != syncdata2.errors:
-            log(f'"errors" differs in {label} : (1=result of sync_dirs, 2=expected result)')
-            log(f"1> {syncdata1.errors} != ")
-            log(f"2> {syncdata2.errors}")
+        if syncdata1.warnings != syncdata2.warnings:
+            log(f'"warnings" differs in {label} : (1=result of sync_dirs, 2=expected result)')
+            log(f"1> {syncdata1.warnings} != ")
+            log(f"2> {syncdata2.warnings}")
             res = False
         if syncdata1.nb_copied != syncdata2.nb_copied:
             log(f'"nb_copied" differs in {label} : (1=result of sync_dirs, 2=expected result)')

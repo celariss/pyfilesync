@@ -1,32 +1,75 @@
 from pyfilesync import *
-from tests.common import are_cmpdata_equal
+from tests.common import *
 from tests.fsmock import FSMock
 from tests.fstree import FSTree
 
 class TestPyFileSync:
     def test_main(self):
         assert main([]) == 1
-        assert main(['tests/config2.json']) == 3
-        assert main(['tests/config1.json', 'bad_action']) == 2
+        assert main(['tests/config2.json', '-v']) == 3
+        assert main(['tests/config1.json', 'bad_action', '-v']) == 2
+        # bad pair name
+        assert main(['tests/config1.json', '-p', 'bad_pair', '-v']) == 4
+        # left folders do not exist
+        assert main(['tests/config1.json', '-v']) == 4
 
         assert main(['-V']) == 0
         assert main(['tests/config1.json', 'list']) == 0
 
-    def test_syncfolderpairs(self):
+    def test_syncfolderpairs1(self):
         FSMock.install_os_mock()
         FSMock.set_fsmock_data(
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt'}))
         )
         FSMock.is_os_walk_mock_windows_style = False
-        FSMock.clean_sync_data()
 
+        # TEST CASE #1 (error) : 'tests/config1.json' - Right folder does not exist in compare
         nb = 1
+        FSMock.clean_sync_data()
         config:SyncConfig = SyncConfig()
         assert not config.load_file('tests/config1.json')
+        FSMock.os_path_exists_values['right1'] = False
         res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', verbose = True)
-        assert res.success
+        assert len(res.errors) == 1 and check_errors_format(res.errors)
+
+        # TEST CASE #2 (OK) : 'tests/config1.json' - Use of create flag when right folder does not exist
+        nb += 1
+        FSMock.clean_sync_data()
+        config:SyncConfig = SyncConfig()
+        assert not config.load_file('tests/config1.json')
+        FSMock.os_path_exists_values['right1'] = False
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', create_root=True, verbose = True)
         assert not res.errors
+        assert not res.warnings
+        
+        # TEST CASE #3 (error) : 'tests/config1.json' - bad action given
+        nb = 1
+        FSMock.clean_sync_data()
+        config:SyncConfig = SyncConfig()
+        assert not config.load_file('tests/config1.json')
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'bad_action', verbose = True)
+        assert len(res.errors) == 1 and check_errors_format(res.errors)
+
+        # TEST CASE #4 (OK) : 'tests/config1.json' - sync action via main()
+        nb += 1
+        FSMock.clean_sync_data()
+        assert main(['tests/config1.json', 'sync']) == 0
+        assert FSMock.copied == set({('left2/file3', 'right2/file3')})
+        assert FSMock.removed == set()
+        assert FSMock.removed_dirs == set({'right1/dir1'})
+        assert FSMock.created_dirs == set()
+
+        # TEST CASE #5 (OK) : 'tests/config1.json' - compare
+        nb += 1
+        FSMock.clean_sync_data()
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', verbose = True)
+        assert not res.errors
+        assert not res.warnings
+        assert res.nb_different ==  0
+        assert res.nb_equal == 4
+        assert res.nb_left_only == 1
+        assert res.nb_right_only == 1
         assert FSMock.copied == set()
         assert FSMock.removed == set()
         assert FSMock.removed_dirs == set()
@@ -43,33 +86,127 @@ class TestPyFileSync:
                               CmpData(equal_files=set({'left2/dir2/file1.mp4', 'left2/dir2/dir3/file2.txt'}),
                                       left_only_files=set({'left2/file3'})),
                               'test_syncfolderpairs:Test case #%d, pair_2' % nb)
+        
+        # TEST CASE #6 (Error) : 'tests/config1.json' - bad pair name given for compare action
+        nb += 1
+        FSMock.clean_sync_data()
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', ['bad_pair_name'], verbose = True)
+        assert len(res.errors) == 1 and check_errors_format(res.errors)
 
+        # TEST CASE #7 (OK) : 'tests/config1.json' - compare only pair_2
+        nb += 1
+        FSMock.clean_sync_data()
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', [config.pairs[1].name], verbose = True)
+        assert not res.errors
+        assert not res.warnings
+        assert res.nb_different ==  0
+        assert res.nb_equal == 2
+        assert res.nb_left_only == 1
+        assert res.nb_right_only == 0
+        assert FSMock.copied == set()
+        assert FSMock.removed == set()
+        assert FSMock.removed_dirs == set()
+        assert FSMock.created_dirs == set()
+        assert not res.pairs_syncdata
+        assert len(res.pairs_cmpdata) == 1
+        assert 'pair_2' in res.pairs_cmpdata and\
+            are_cmpdata_equal(res.pairs_cmpdata['pair_2'][1],
+                              CmpData(equal_files=set({'left2/dir2/file1.mp4', 'left2/dir2/dir3/file2.txt'}),
+                                      left_only_files=set({'left2/file3'})),
+                              'test_syncfolderpairs:Test case #%d, pair_2' % nb)
+
+        # TEST CASE #8 (OK) : 'tests/config1.json' - sync action
         nb += 1
         FSMock.clean_sync_data()
         res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', verbose = True)
-        assert res.success
         assert not res.errors
         assert FSMock.copied == set({('left2/file3', 'right2/file3')})
         assert FSMock.removed == set()
         assert FSMock.removed_dirs == set({'right1/dir1'})
         assert FSMock.created_dirs == set()
         assert 'pair_1' in res.pairs_syncdata
-        assert not res.pairs_syncdata['pair_1'][1].errors
+        assert not res.pairs_syncdata['pair_1'][1].warnings
         assert res.pairs_syncdata['pair_1'][1].nb_copied == 0
         assert res.pairs_syncdata['pair_1'][1].nb_deleted == 1
         assert res.pairs_syncdata['pair_1'][1].nb_updated == 0
         assert 'pair_2' in res.pairs_syncdata
-        assert not res.pairs_syncdata['pair_2'][1].errors
+        assert not res.pairs_syncdata['pair_2'][1].warnings
         assert res.pairs_syncdata['pair_2'][1].nb_copied == 1
         assert res.pairs_syncdata['pair_2'][1].nb_deleted == 0
         assert res.pairs_syncdata['pair_2'][1].nb_updated == 0
-        
+
+        # TEST CASE #9 (OK) : 'tests/config1.json' - sync action with warning on remove dir
         nb += 1
         FSMock.clean_sync_data()
-        assert main(['tests/config1.json', 'sync']) == 0
-        assert FSMock.copied == set({('left2/file3', 'right2/file3')})
+        FSMock.os_rmdir_failure_paths['right1/dir1'] = False
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', ['pair_1'], verbose = True)
+        assert not res.errors
+        assert len(res.warnings) == 1 and check_errors_format(res.warnings)
+        assert FSMock.copied == set()
         assert FSMock.removed == set()
-        assert FSMock.removed_dirs == set({'right1/dir1'})
+        assert FSMock.removed_dirs == set()
         assert FSMock.created_dirs == set()
+        assert 'pair_1' in res.pairs_syncdata
+        assert len(res.pairs_syncdata['pair_1'][1].warnings) == 1
+        assert res.pairs_syncdata['pair_1'][1].nb_copied == 0
+        assert res.pairs_syncdata['pair_1'][1].nb_deleted == 0
+        assert res.pairs_syncdata['pair_1'][1].nb_updated == 0
+
+        # TEST CASE #10 (OK) : 'tests/config1.json' - sync action with warning on copy file
+        nb += 1
+        FSMock.clean_sync_data()
+        FSMock.os_copy_failure_paths['right2/file3'] = False
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', ['pair_2'], verbose = True)
+        assert not res.errors
+        assert len(res.warnings) == 1 and check_errors_format(res.warnings)
+        assert FSMock.copied == set()
+        assert FSMock.removed == set()
+        assert FSMock.removed_dirs == set()
+        assert FSMock.created_dirs == set()
+        assert 'pair_2' in res.pairs_syncdata
+        assert len(res.pairs_syncdata['pair_2'][1].warnings) == 1
+        assert res.pairs_syncdata['pair_2'][1].nb_copied == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_deleted == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_updated == 0
+
+        # TEST CASE #11 (OK) : 'tests/config1.json' - sync action with warning on update file
+        nb += 1
+        FSMock.set_fsmock_data(
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            {'right2/file3':DirSyncer.FileProperties(1,0)}
+        )
+        FSMock.clean_sync_data()
+        FSMock.os_copy_failure_paths['right2/file3'] = False
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', ['pair_2'], verbose = True)
+        assert not res.errors
+        assert len(res.warnings) == 1 and check_errors_format(res.warnings)
+        assert FSMock.copied == set()
+        assert FSMock.removed == set()
+        assert FSMock.removed_dirs == set()
+        assert FSMock.created_dirs == set()
+        assert 'pair_2' in res.pairs_syncdata
+        assert len(res.pairs_syncdata['pair_2'][1].warnings) == 1
+        assert res.pairs_syncdata['pair_2'][1].nb_copied == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_deleted == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_updated == 0
+
+         # TEST CASE #12 (Error) : 'tests/config1.json' - sync action with error on include pattern
+        nb += 1
+        FSMock.clean_sync_data()
+        save = config.pairs[1].include_regex.copy()
+        config.pairs[1].include_regex.append('**')
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', verbose = True)
+        assert len(res.errors) == 1 and check_errors_format(res.errors)
+        config.pairs[1].include_regex = save
+
+         # TEST CASE #13 (Error) : 'tests/config1.json' - sync action with error on exclude pattern
+        nb += 1
+        FSMock.clean_sync_data()
+        save = config.pairs[1].exclude_regex.copy()
+        config.pairs[1].exclude_regex.append('**')
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', verbose = True)
+        assert len(res.errors) == 1 and check_errors_format(res.errors)
+        config.pairs[1].exclude_regex = save
 
         FSMock.uninstall_os_mock()

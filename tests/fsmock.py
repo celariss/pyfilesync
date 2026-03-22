@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from tests.fstree import FSTree # needed for python3 older than 3.14
@@ -31,12 +32,16 @@ class FSMock:
     system_os_makedirs = os.makedirs
     system_shutil_copy2 = shutil.copy2
     system_os_stat = os.stat
+    system_os_chmod = os.chmod
     actual_get_file_properties = DirSyncer.__get_file_properties__
 
     left_filetree:FSTree = FSTree()
     right_filetree:FSTree = FSTree()
     file_properties:dict[str,DirSyncer.FileProperties] = {}
     is_os_walk_mock_windows_style:bool = False
+    os_path_exists_values:dict[str,bool] = {}
+    os_rmdir_failure_paths:dict[str,bool] = {}
+    os_copy_failure_paths:dict[str,bool] = {}
     copied:set = set()
     removed:set = set()
     removed_dirs:set = set()
@@ -57,10 +62,14 @@ class FSMock:
         os.makedirs = FSMock._os_makedirs
         shutil.copy2 = FSMock._shutil_copy2
         os.stat = FSMock._os_stat
+        os.chmod = FSMock._os_chmod
         DirSyncer.__get_file_properties__ = FSMock._get_file_properties_mock_
         FSMock.left_filetree = FSTree()
         FSMock.right_filetree = FSTree()
         FSMock.file_properties = {}
+        FSMock.os_path_exists_values.clear()
+        FSMock.os_rmdir_failure_paths.clear()
+        FSMock.os_copy_failure_paths.clear()
 
     def uninstall_os_mock():
         os.walk = FSMock.system_os_walk
@@ -77,6 +86,7 @@ class FSMock:
         os.makedirs = FSMock.system_os_makedirs
         shutil.copy2 = FSMock.system_shutil_copy2
         os.stat = FSMock.system_os_stat
+        os.chmod = FSMock.system_os_chmod
         DirSyncer.__get_file_properties__ = FSMock.actual_get_file_properties
         FSMock.left_filetree = FSTree()
         FSMock.right_filetree = FSTree()
@@ -92,6 +102,9 @@ class FSMock:
         FSMock.removed = set()
         FSMock.removed_dirs = set()
         FSMock.created_dirs = set()
+        FSMock.os_path_exists_values.clear()
+        FSMock.os_rmdir_failure_paths.clear()
+        FSMock.os_copy_failure_paths.clear()
     
     def _find_dirs_node_(treenode:list) -> dict:
         for item in treenode:
@@ -218,7 +231,7 @@ class FSMock:
     def _os_exists(path:str) -> bool:
         if not isinstance(path, str):
             return FSMock.system_os_exists(path)
-        return True
+        return FSMock.os_path_exists_values.get(path,True)
     
     def _os_islink(path:str) -> bool:
         if not isinstance(path, str):
@@ -227,27 +240,33 @@ class FSMock:
     
     def _os_remove(path):
         FSMock.removed.add(path)
-        return
 
-    def _shutil_rmtree(path):
+    def _shutil_rmtree(path, ignore_errors=False):
+        if path in FSMock.os_rmdir_failure_paths and not ignore_errors:
+            raise PermissionError
         FSMock.removed_dirs.add(path)
-        return
     
     def _os_mkdir(path, mode: int = 0o777):
         if not isinstance(path, str):
             FSMock.system_os_mkdir(path,mode)
         FSMock.created_dirs.add(path)
-        return
     
     def _os_makedirs(path):
         return
     
     def _shutil_copy2(src, dest):
+        if src in FSMock.os_copy_failure_paths:
+            raise OSError
+        if dest in FSMock.os_copy_failure_paths:
+            raise PermissionError
         FSMock.copied.add((src,dest))
-        return
     
     def _os_stat(path, *, dir_fd: int | None = None, follow_symlinks: bool = True) -> any:
         if not isinstance(path,str):
             return FSMock.system_os_stat(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
         res = type('TMP', (object,), {'st_size': 0})()
         return res
+    
+    def _os_chmod(path, mode: int, *, dir_fd: int | None = None, follow_symlinks: bool = True):
+        if not isinstance(path,str):
+            return FSMock.system_os_chmod(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
