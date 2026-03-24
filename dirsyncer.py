@@ -1,5 +1,4 @@
 from __future__ import annotations # needed for python3 older than 3.14
-
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
@@ -360,13 +359,10 @@ class DirSyncer:
         elif os.path.isdir(path):
             shutil.rmtree(path)
 
-    def __copy_dir_or_file__(src:str, dest:str, copydircontent:bool = False):
+    def __copy_dir_or_file__(src:str, dest:str):
         if os.path.isdir(src):
             if not os.path.exists(dest):
-                if copydircontent:
-                    shutil.copytree(src, dest)
-                else:
-                    os.mkdir(dest)
+                os.mkdir(dest)
         else:
             destdir = os.path.dirname(dest)
             if not os.path.exists(destdir):

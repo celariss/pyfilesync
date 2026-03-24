@@ -4,6 +4,15 @@ __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
+
+def is_present(item, iterable, case_sensitive:bool = True)->bool:
+    for i in iterable:
+        if i == item:
+            return True
+        if (not case_sensitive) and isinstance(i,str) and i.lower() == item.lower():
+            return True
+    return False
+
 class FSTree:
     """simulate file system content using a tree"""
     
@@ -49,7 +58,14 @@ class FSTree:
                 fileset.add(root+node)
         return fileset
     
-    def _find_node_(tree:list, path:str, create:bool = False) -> list:
+    def exists(self, path:str, create:bool = False, case_sensitive:bool = False) -> bool:
+        path = path.replace('\\', '/')
+        res = FSTree._find_node_(self.filetree, path, create, case_sensitive)
+        if not res:
+            res = FSTree._find_node_(self.filetree, path+'/', create, case_sensitive)
+        return res != None
+    
+    def _find_node_(tree:list, path:str, create:bool = False, case_sensitive:bool = True) -> list:
         isdir = path.endswith('/')
         pathitems:list
         if isdir:
@@ -61,21 +77,26 @@ class FSTree:
         for item in pathitems:
             num +=1
             dirsnode:dict =FSTree._get_dirs_node_(node)
+            item_in_node:bool = is_present(item, node, case_sensitive)
+            item_in_dirsnode:bool = is_present(item, dirsnode.keys(), case_sensitive)
             if num == len(pathitems):
-                if (isdir and item in node) or ((not isdir) and item in dirsnode):
+                if (isdir and item_in_node) or ((not isdir) and item_in_dirsnode):
                     # Error, it is file and it should be a dir (and vice versa)
                     return None
                 if isdir:
-                    if (not item in dirsnode) and create:
+                    if (not item_in_dirsnode) and create:
                         dirsnode[item] = []
-                    return dirsnode.get(item, [])
+                    return dirsnode.get(item, None)
                 else:
-                    if (not item in node) and create:
-                        node.append(item)
+                    if (not item_in_node):
+                        if create:
+                            node.append(item)
+                        else:
+                            return None
                     return node
-            if (not item in dirsnode) and create:
+            if (not item_in_dirsnode) and create:
                 dirsnode[item] = []
-            if not item in dirsnode:
+            if not is_present(item, dirsnode.keys(), case_sensitive):
                 # error, path does not exist in tree
                 return None
             node = dirsnode[item] 

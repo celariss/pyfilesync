@@ -3,6 +3,7 @@ __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
 import fnmatch
+
 from helpers import log
 from dirsyncer import *
 from tests.common import are_cmpdata_equal
@@ -136,8 +137,8 @@ class TestCompareDirs:
         for left_filetree, right_filetree, include, exclude, fileproperties, ignore_right_only, expected in dataset:
             nb += 1
             FSMock.set_fsmock_data(FSTree(left_filetree), FSTree(right_filetree), fileproperties)
-            for FSMock.is_os_walk_mock_windows_style in [True, False]:
-                text = 'Windows' if FSMock.is_os_walk_mock_windows_style else 'Linux'
+            for FSMock.is_os_fs_windows_style in [True, False]:
+                text = 'Windows' if FSMock.is_os_fs_windows_style else 'Linux'
                 compare_result = DirSyncer.compare_dirs(
                     'left', 'right', [fnmatch.translate(x) for x in include],
                     [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only

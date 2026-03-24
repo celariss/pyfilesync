@@ -10,15 +10,15 @@ import sys
 def log(message: str):
     print(message)
 
-def log_error(message: str, exitScript: bool = False):
+
+def log_error(message: str):
     """print an error and stop current script
 
     :param message: message to print out
     :param exitScript: indicates whether the function must call exit, defaults to True
     """
     print("ERROR: "+message, file=sys.stderr)
-    if exitScript:
-        exit(1)
+
 
 def replace_env_variables(text: str) -> str:
     """replace env variables in a text (ex: ${TEMP} or $TEMP) by their value

@@ -3,6 +3,7 @@ from tests.common import *
 from tests.fsmock import FSMock
 from tests.fstree import FSTree
 
+
 class TestPyFileSync:
     def test_main(self):
         assert main([]) == 1
@@ -17,18 +18,19 @@ class TestPyFileSync:
         assert main(['tests/config1.json', 'list']) == 0
 
     def test_syncfolderpairs1(self):
+        config:SyncConfig = SyncConfig()
+        assert not config.load_file('tests/config1.json')
+
         FSMock.install_os_mock()
         FSMock.set_fsmock_data(
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt'}))
         )
-        FSMock.is_os_walk_mock_windows_style = False
+        FSMock.is_os_fs_windows_style = False
 
         # TEST CASE #1 (error) : 'tests/config1.json' - Right folder does not exist in compare
         nb = 1
         FSMock.clean_sync_data()
-        config:SyncConfig = SyncConfig()
-        assert not config.load_file('tests/config1.json')
         FSMock.os_path_exists_values['right1'] = False
         res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', verbose = True)
         assert len(res.errors) == 1 and check_errors_format(res.errors)
@@ -36,24 +38,21 @@ class TestPyFileSync:
         # TEST CASE #2 (OK) : 'tests/config1.json' - Use of create flag when right folder does not exist
         nb += 1
         FSMock.clean_sync_data()
-        config:SyncConfig = SyncConfig()
-        assert not config.load_file('tests/config1.json')
         FSMock.os_path_exists_values['right1'] = False
         res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', create_root=True, verbose = True)
         assert not res.errors
         assert not res.warnings
         
         # TEST CASE #3 (error) : 'tests/config1.json' - bad action given
-        nb = 1
+        nb += 1
         FSMock.clean_sync_data()
-        config:SyncConfig = SyncConfig()
-        assert not config.load_file('tests/config1.json')
         res:FolderPairsSyncResults = sync_folders_pairs(config, 'bad_action', verbose = True)
         assert len(res.errors) == 1 and check_errors_format(res.errors)
 
         # TEST CASE #4 (OK) : 'tests/config1.json' - sync action via main()
         nb += 1
         FSMock.clean_sync_data()
+        FSMock.os_path_exists_values['tests/config1.json'] = True
         assert main(['tests/config1.json', 'sync']) == 0
         assert FSMock.copied == set({('left2/file3', 'right2/file3')})
         assert FSMock.removed == set()
@@ -191,7 +190,51 @@ class TestPyFileSync:
         assert res.pairs_syncdata['pair_2'][1].nb_deleted == 0
         assert res.pairs_syncdata['pair_2'][1].nb_updated == 0
 
-         # TEST CASE #12 (Error) : 'tests/config1.json' - sync action with error on include pattern
+         # TEST CASE #12 (OK) : 'tests/config1.json' - compare action with a file to update
+        nb += 1
+        FSMock.set_fsmock_data(
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            {'right2/file3':DirSyncer.FileProperties(1,0)}
+        )
+        FSMock.clean_sync_data()
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'compare', ['pair_2'], verbose = True)
+        assert not res.errors
+        assert not res.warnings
+        assert res.nb_different ==  1
+        assert res.nb_equal == 2
+        assert res.nb_left_only == 0
+        assert res.nb_right_only == 0
+        assert not res.pairs_syncdata
+        assert len(res.pairs_cmpdata) == 1
+        assert 'pair_2' in res.pairs_cmpdata and\
+            are_cmpdata_equal(res.pairs_cmpdata['pair_2'][1],
+                              CmpData(equal_files=set({'left2/dir2/file1.mp4', 'left2/dir2/dir3/file2.txt'}),
+                                      different_files=set({'left2/file3'})),
+                              'test_syncfolderpairs:Test case #%d, pair_2' % nb)
+        
+        # TEST CASE #13 (OK) : 'tests/config1.json' - sync action with a file to update
+        nb += 1
+        FSMock.set_fsmock_data(
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
+            {'right2/file3':DirSyncer.FileProperties(1,0)}
+        )
+        FSMock.clean_sync_data()
+        res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', ['pair_2'], verbose = True)
+        assert not res.errors
+        assert not res.warnings
+        assert FSMock.copied == set({('left2/file3', 'right2/file3')})
+        assert FSMock.removed == set()
+        assert FSMock.removed_dirs == set()
+        assert FSMock.created_dirs == set()
+        assert 'pair_2' in res.pairs_syncdata
+        assert len(res.pairs_syncdata['pair_2'][1].warnings) == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_copied == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_deleted == 0
+        assert res.pairs_syncdata['pair_2'][1].nb_updated == 1
+
+        # TEST CASE #14 (Error) : 'tests/config1.json' - sync action with error on include pattern
         nb += 1
         FSMock.clean_sync_data()
         save = config.pairs[1].include_regex.copy()

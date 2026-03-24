@@ -2,11 +2,12 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "1.1.0"
+__version__     = "1.1.1"
 
 import argparse
 import fnmatch
 import sys, os
+
 from syncconfig import *
 from helpers import *
 from dirsyncer import *

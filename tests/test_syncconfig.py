@@ -1,5 +1,6 @@
 from syncconfig import *
 
+
 class TestSyncConfig:
     def test_syncconfig(self):
         config:SyncConfig = SyncConfig()
@@ -13,6 +14,10 @@ class TestSyncConfig:
         assert config.load_json_string('{"pairs":[]}') == None
         assert config.load_json_string('{"global":{},"pairs":[{"left":"","right":""}]}') == None
         assert config.load_json_string('{"global":{"include_regex":[], "exclude_regex":[]}, "pairs":[]}') == None
+        assert config.load_json_string('{"pairs":[{"name":"#@", "left":"", "right":""}]}') # bad name
+        assert config.load_json_string('{"pairs":[{"left":{}, "right":""}]}') # bad left/right type
+        assert config.load_json_string('{"pairs":[{"left":"", "right":[]}]}') # bad left/right type
+        assert config.load_json_string('{""') # bad json data
 
         assert config.load_json_string('{"global":{"include":["*.bat"], "exclude":["*.py"], "include_regex":["..*$"], "exclude_regex":["^[a-z]"]}, "pairs":[{"left":"","right":""}]}') == None
         assert len(config.pairs) == 1
