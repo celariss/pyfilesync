@@ -11,13 +11,13 @@ def log(message: str):
     print(message)
 
 
-def log_error(message: str):
+def log_error(message: str, prefix='ERROR: '):
     """print an error and stop current script
 
     :param message: message to print out
     :param exitScript: indicates whether the function must call exit, defaults to True
     """
-    print("ERROR: "+message, file=sys.stderr)
+    print(prefix+message, file=sys.stderr)
 
 
 def replace_env_variables(text: str) -> str:

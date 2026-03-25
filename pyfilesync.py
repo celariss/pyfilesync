@@ -206,15 +206,15 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] =
     if verbose:
         log('')
         if res.warnings:
-            log_error("%d warnings encountered during comparison/synchronization :" % len(res.warnings))
+            log("%d warnings encountered during comparison/synchronization :" % len(res.warnings))
             for warning in res.warnings:
-                log_error("  "+str(warning[1])+" : "+str(warning[0]))
+                log("  . "+str(warning[1])+" : "+str(warning[0]))
         else:
             log("No warning encountered")
         if res.errors:
-            log_error("%d errors encountered during comparison/synchronization :" % len(res.errors))
+            log("%d errors encountered during comparison/synchronization :" % len(res.errors))
             for error in res.errors:
-                log_error("  "+str(error[1])+" : "+str(error[0]))
+                log("  . "+str(error[1])+" : "+str(error[0]))
         else:
             log("No error encountered")
 

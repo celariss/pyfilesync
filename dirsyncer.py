@@ -87,7 +87,8 @@ class DirSyncer:
             try:
                 exclude_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                return CmpData(errors=set({(pattern, "Invalid exclude regex pattern")}))
+                log_error('  Invalid exclude regex pattern: '+pattern)
+                return CmpData(errors=set({(pattern, 'Invalid exclude regex pattern')}))
 
         if not include: include = []
         include_re = []
@@ -95,6 +96,7 @@ class DirSyncer:
             try:
                 include_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
+                log_error('  Invalid include regex pattern: '+pattern)
                 return CmpData(errors=set({(pattern, "Invalid include regex pattern")}))
             
         explicitly_excluded_dirs:set = set()
@@ -208,7 +210,7 @@ class DirSyncer:
                                 os.chmod(rightpath, stat.S_IWRITE)
                             DirSyncer.__rm_file_or_dir__(rightpath)
                 except Exception as e:
-                    log_error('  '+str(e))
+                    log_error('  '+str(e), 'Warning: ')
                     syncdata.warnings.add((rightpath, str(e)))
                     continue
                 else:
@@ -231,7 +233,7 @@ class DirSyncer:
                             os.chmod(rightpath, stat.S_IWRITE)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
-                    log_error('  '+str(e))
+                    log_error('  '+str(e), 'Warning: ')
                     syncdata.warnings.add((f, str(e)))
                     continue
                 else:
@@ -255,7 +257,7 @@ class DirSyncer:
                             os.chmod(rightpath, stat.S_IWRITE)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
-                    log_error('  '+str(e))
+                    log_error('  '+str(e), 'Warning: ')
                     syncdata.warnings.add((leftfile, str(e)))
                     continue
                 else:
@@ -300,8 +302,9 @@ class DirSyncer:
         try:
             st:os.stat_result = os.stat(path)
             return DirSyncer.FileProperties(st.st_size, st.st_mtime)
-        except os.error:
-            warnings.add((path, "Could not get file stats"))
+        except os.error as e:
+            log_error('  '+str(e), 'Warning: ')
+            warnings.add((path, str(e)))
         return None
 
     
