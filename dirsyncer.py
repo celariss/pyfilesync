@@ -25,6 +25,10 @@ class CmpData(object):
         self.right_only_files_in_dirs:set = right_only_files_in_dirs if right_only_files_in_dirs else set()
         self.equal_files:set = equal_files if equal_files else set()
         self.different_files:set = different_files if different_files else set()
+        self.size_to_copy:int = 0
+        self.size_to_update:int = 0
+        self.size_to_delete:int = 0
+        self.size_needed:int = 0
         # each item is a tuple[target, error_text]
         self.errors:set = errors if errors else set()
         # each item is a tuple[target, warning_text]
@@ -38,6 +42,10 @@ class CmpData(object):
         self.right_only_files_in_dirs.update(data.right_only_files_in_dirs)
         self.equal_files.update(data.equal_files)
         self.different_files.update(data.different_files)
+        self.size_to_delete += data.size_to_delete
+        self.size_to_copy += data.size_to_copy
+        self.size_to_update += data.size_to_update
+        self.size_needed += data.size_needed
         self.errors.update(data.errors)
         self.warnings.update(data.warnings)
 
@@ -148,25 +156,23 @@ class DirSyncer:
             file1 = os.path.join(leftdir, f)
             file2 = os.path.join(rightdir, f)
             err = False
-            if os.path.isfile(file1) and os.path.isfile(file2):
-                fprop1 = DirSyncer.__get_file_properties__(file1, warnings)
-                fprop2 = DirSyncer.__get_file_properties__(file2, warnings)
-                if fprop1 and fprop2:
-                    # comparison criteria to detect different files are files size and modification time (or files content if asked)
-                    different = fprop1.st_size != fprop2.st_size
-                    if not different:
-                        if compare_file_content:
-                            different = (not filecmp.cmp(file1, file2, False))
-                        else:
-                            different = DirSyncer.__cmp_modif_times__(fprop1, fprop2)
-                    if different:
-                        cmpdata.different_files.add(f)
+            fprop1 = DirSyncer.__get_file_properties__(file1, warnings)
+            fprop2 = DirSyncer.__get_file_properties__(file2, warnings)
+            if fprop1 and fprop2:
+                # comparison criteria to detect different files are files size and modification time (or files content if asked)
+                different = fprop1.st_size != fprop2.st_size
+                if not different:
+                    if compare_file_content:
+                        different = (not filecmp.cmp(file1, file2, False))
                     else:
-                        cmpdata.equal_files.add(f)
-            else:
-                # it's a directory => equal
-                cmpdata.equal_files.add(f)
-
+                        different = DirSyncer.__cmp_modif_times__(fprop1, fprop2)
+                if different:
+                    cmpdata.different_files.add(f)
+                    cmpdata.size_to_update += fprop1.st_size
+                    cmpdata.size_needed += (fprop1.st_size - fprop2.st_size)
+                else:
+                    cmpdata.equal_files.add(f)
+        
         common_dirs = left_dirs.intersection(right_dirs)
         cmpdata.left_only_empty_dirs = left_empty_dirs.difference(right_dirs)
         
@@ -176,12 +182,21 @@ class DirSyncer:
             cmpdata.right_only_dirs = DirSyncer._get_roots(right_only_all_dirs)
             right_only = right_files.difference(common_files)
             for f in right_only:
+                fprop = DirSyncer.__get_file_properties__(os.path.join(rightdir, f), warnings)
+                if fprop:
+                    cmpdata.size_needed -= fprop.st_size
+                    cmpdata.size_to_delete += fprop.st_size
                 if os.path.dirname(f) in right_only_all_dirs:
                     cmpdata.right_only_files_in_dirs.add(f)
                 else:
                     cmpdata.right_only_files.add(f)
 
         cmpdata.left_only_files = left_files.difference(common_files)
+        for file in cmpdata.left_only_files:
+            fprop = DirSyncer.__get_file_properties__(os.path.join(leftdir, file), warnings)
+            if fprop:
+                cmpdata.size_to_copy += fprop.st_size
+                cmpdata.size_needed += fprop.st_size
         cmpdata.warnings = warnings
         return cmpdata
 
