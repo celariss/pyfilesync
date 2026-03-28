@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "1.1.1"
+__version__     = "1.1.2"
 
 import argparse
 import fnmatch
@@ -74,14 +74,14 @@ def log_size_needed(size_needed, prefix:str=''):
 def log_compare_result(cmpdata:CmpData, verbose):
     if verbose:
         if cmpdata.left_only_files or cmpdata.left_only_empty_dirs:
-            log("  Files only in left folder:")
+            log("  Files and dirs only on left side:")
             for f in sorted(cmpdata.left_only_files):
                 log("   | ."+os.path.sep+f)
             for f in sorted(cmpdata.left_only_empty_dirs):
                 log("   | ."+os.path.sep+f+os.path.sep)
             log('')
         if cmpdata.right_only_files or cmpdata.right_only_dirs:
-            log("  Files only in right folder:")
+            log("  Files and dirs only on right side:")
             for f in sorted(cmpdata.right_only_files):
                 log("   | ."+os.path.sep+f)
             for f in sorted(cmpdata.right_only_dirs):
@@ -97,11 +97,11 @@ def log_compare_result(cmpdata:CmpData, verbose):
     nbfiles = len(cmpdata.left_only_files)+len(cmpdata.left_only_empty_dirs)
     if nbfiles:
         blog = True
-        log("    Left only: %d files (%s)" % (nbfiles, format_size(cmpdata.size_to_copy)))
+        log("    Left only: %d files/dirs (%s)" % (nbfiles, format_size(cmpdata.size_to_copy)))
     nbfiles = len(cmpdata.right_only_files)+len(cmpdata.right_only_files_in_dirs)+len(cmpdata.right_only_dirs)
     if nbfiles:
         blog = True
-        log("    Right only: %d files (%s)" % (nbfiles, format_size(cmpdata.size_to_delete)))
+        log("    Right only: %d files/dirs (%s)" % (nbfiles, format_size(cmpdata.size_to_delete)))
     if len(cmpdata.equal_files):
         blog = True
         log("    Equal: %d files" % len(cmpdata.equal_files))
@@ -117,11 +117,11 @@ def log_sync_result(syncdata:SyncData, verbose):
     if syncdata.nb_copied or syncdata.nb_updated or syncdata.nb_deleted:
         log("  Synchronization results:")
         if syncdata.nb_copied:
-            log("    Copied: %d files (%s)" % (syncdata.nb_copied, format_size(syncdata.size_copied)))
+            log("    Copied: %d files/dirs (%s)" % (syncdata.nb_copied, format_size(syncdata.size_copied)))
         if syncdata.nb_updated:
             log("    Updated: %d files (%s)" % (syncdata.nb_updated, format_size(syncdata.size_updated)))
         if syncdata.nb_deleted:
-            log("    Deleted: %d files" % syncdata.nb_deleted)
+            log("    Deleted: %d files/dirs" % syncdata.nb_deleted)
 
 
 def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
@@ -218,16 +218,16 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] =
     
     log('All jobs done, statistics :')
     if action=='compare':
-        log("  Left only: %d files (%s)" % (res.nb_left_only, format_size(res.size_to_copy)))
-        log("  Right only: %d files (%s)" % (res.nb_right_only, format_size(res.size_to_delete)))
+        log("  Left only: %d files/dirs (%s)" % (res.nb_left_only, format_size(res.size_to_copy)))
+        log("  Right only: %d files/dirs (%s)" % (res.nb_right_only, format_size(res.size_to_delete)))
         log("  Equal: %d files" % res.nb_equal)
         log("  Different: %d files (%s)" % (res.nb_different, format_size(res.size_to_update)))
         log_size_needed(res.size_needed, '  ')
 
     if action=='sync':
-        log("  Copied: %d files (%s)" % (res.syncdata.nb_copied, format_size(res.syncdata.size_copied)))
+        log("  Copied: %d files/dirs (%s)" % (res.syncdata.nb_copied, format_size(res.syncdata.size_copied)))
         log("  Updated: %d files (%s)" % (res.syncdata.nb_updated, format_size(res.syncdata.size_updated)))
-        log("  Deleted: %d files" % res.syncdata.nb_deleted)
+        log("  Deleted: %d files/dirs" % res.syncdata.nb_deleted)
 
     if verbose:
         log('')

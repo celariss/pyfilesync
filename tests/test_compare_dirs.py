@@ -67,8 +67,13 @@ class TestCompareDirs:
             (testtree, [], ['/dir1/'], ['*/dir11/'], {}, False, CmpData(set({'dir1/file3', 'dir1/file4.txt'}))),
             (set({'dir1/dir2/dir3/file1', 'dir1/dir4/dir5/dir3/file2', 'dir1/dir4/dir5/dir3/dir6/', 'dir1/dir4/dir5/dir3/dir7/', 'dir2/'}), [], [], [], {}, False,
                 CmpData(set({'dir1/dir2/dir3/file1', 'dir1/dir4/dir5/dir3/file2'}), set({'dir1/dir4/dir5/dir3/dir6', 'dir1/dir4/dir5/dir3/dir7', 'dir2'}))),
-             (set({'dir1/dir2/dir3/file1', 'dir1/dir4/dir5/dir3/file2', 'dir1/dir4/dir5/dir3/dir6/', 'dir1/dir4/dir5/dir3/dir7/', 'dir2/dir3/'}), [], [], ['*/dir3/'], {}, False,
-                CmpData(set(), set({'dir2', 'dir1/dir2', 'dir1/dir4/dir5'}))),
+            
+            (set({'dir1/dir2/dir3/file1', 'dir1/dir4/dir5/dir3/file2', 'dir1/dir4/dir5/dir3/dir6/', 'dir1/dir4/dir5/dir3/dir7/', 'dir2/dir3/'}), [], [], ['*/dir3/'], {}, False,
+                CmpData(set(), set())),
+            (set({'dir1/file1.log', 'dir1/dir2/file2.log', 'dir3/dir4/'}), [], ['*'], ['*.log'], {}, False, CmpData(left_only_empty_dirs=set({'dir3/dir4'}))),
+            (set({'dir1/file1.log', 'dir1/dir2/file2.log', 'dir3/dir4/'}), [], ['*.txt'], [], {}, False, CmpData()),
+            (set({'dir1/file1.log', 'dir1/dir2/file2.log', 'dir1/dir5/', 'dir3/dir4/'}), [], ['*'], ['*.log'], {}, False, CmpData(left_only_empty_dirs=set({'dir3/dir4', 'dir1/dir5'}))),
+            (set({'dir1/file1.log', 'dir1/dir2/file2.log', 'dir1/dir5/', 'dir3/dir4/'}), [], ['*.txt'], [], {}, False, CmpData()),
         ]
         
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_left_only')

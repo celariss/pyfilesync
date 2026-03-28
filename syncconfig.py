@@ -67,7 +67,7 @@ class SyncConfig:
         if not os.path.exists(path):
             return ("Config file <"+path+"> does not exist")
 
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf8') as f:
             error = self.load_json_string(f.read())
             if error:
                 return error

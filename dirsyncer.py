@@ -110,7 +110,6 @@ class DirSyncer:
         explicitly_excluded_dirs:set = set()
         explicitly_included_dirs:set = set()
         for root, dirs, files in os.walk(leftdir):
-            any_content_included:bool = False
             for f in dirs + files:
                 full_path = os.path.join(root, f)
                 if root in explicitly_excluded_dirs:
@@ -122,7 +121,6 @@ class DirSyncer:
                     if isdir and (match == DirSyncer.EfileMatch.INCLUDED or (root in explicitly_included_dirs)):
                         explicitly_included_dirs.add(full_path)
                     if match == DirSyncer.EfileMatch.INCLUDED or (match == DirSyncer.EfileMatch.NO_MATCH and (root in explicitly_included_dirs)):
-                        any_content_included = True
                         parent = os.path.dirname(path)
                         if isdir:
                             left_dirs.add(path)
@@ -131,7 +129,7 @@ class DirSyncer:
                             left_files.add(path)
                     elif isdir and match == DirSyncer.EfileMatch.EXCLUDED:
                         explicitly_excluded_dirs.add(full_path)
-            if not any_content_included:
+            if (not dirs) and (not files):
                 # it is an empty dir
                 dir = os.path.relpath(root, leftdir)
                 if dir in left_dirs:
