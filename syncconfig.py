@@ -14,6 +14,8 @@ class GlobalSection:
         self.cmp_files_content:bool = False
         self.include_regex:list[str] = []
         self.exclude_regex:list[str] = []
+        self.history_mode_depth:int = 0
+        self.history_mode_file_max_saved_size:int = 0
 
     def load(self, config:dict) -> str:
         self.cmp_files_content = config.get('cmp_files_content', False)
@@ -21,6 +23,11 @@ class GlobalSection:
             (self.include_regex, self.exclude_regex) = SyncConfig.get_patterns(config, 'global')
         except SyncConfig.Error as exc:
             return exc.error_text
+        history_data:dict = config.get('history_mode', {})
+        if not isinstance(history_data, dict):
+            return "Config file is not valid, 'history_mode' must be a dictionary"
+        self.history_mode_depth = history_data.get('depth', 0)
+        self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', 0)
         return None
         
 
@@ -33,6 +40,8 @@ class PairSection:
         self.cmp_files_content:bool = False
         self.include_regex:list[str] = []
         self.exclude_regex:list[str] = []
+        self.history_mode_depth:int = 0
+        self.history_mode_file_max_saved_size:int = 0
 
     def load(self, pairconfig: dict, globalconfig:GlobalSection) -> str:
         """fill this instance fields from dictionary. The given global config is used to fill fields not defined in "pairconfig"."""
@@ -46,6 +55,11 @@ class PairSection:
             return exc.error_text
         self.include_regex.extend(globalconfig.include_regex)
         self.exclude_regex.extend(globalconfig.exclude_regex)
+        history_data:dict = pairconfig.get('history_mode', {})
+        if not isinstance(history_data, dict):
+            return "Config file is not valid, 'history_mode' must be a dictionary"
+        self.history_mode_depth = history_data.get('depth', globalconfig.history_mode_depth)
+        self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', globalconfig.history_mode_file_max_saved_size)
         return None
 
 class SyncConfig:

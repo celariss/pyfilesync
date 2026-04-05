@@ -23,13 +23,16 @@ class FSMock:
     system_os_dirname = os.path.dirname
     system_os_exists = os.path.exists
     system_os_islink = os.path.islink
+    system_os_getsize = os.path.getsize
     system_os_remove = os.remove
     system_shutil_rmtree = shutil.rmtree
     system_os_mkdir = os.mkdir
     system_os_makedirs = os.makedirs
     system_shutil_copy2 = shutil.copy2
+    system_shutil_move = shutil.move
     system_os_stat = os.stat
     system_os_chmod = os.chmod
+    system_os_scandir = os.scandir
     actual_get_file_properties = DirSyncer.__get_file_properties__
 
     left_filetree:FSTree = FSTree()
@@ -53,13 +56,16 @@ class FSMock:
         os.path.dirname = FSMock._os_dirname_mock_
         os.path.exists = FSMock._os_exists
         os.path.islink = FSMock._os_islink
+        os.path.getsize = FSMock._os_getsize
         os.remove = FSMock._os_remove
         shutil.rmtree = FSMock._shutil_rmtree
         os.mkdir = FSMock._os_mkdir
         os.makedirs = FSMock._os_makedirs
         shutil.copy2 = FSMock._shutil_copy2
+        shutil.move = FSMock._shutil_move
         os.stat = FSMock._os_stat
         os.chmod = FSMock._os_chmod
+        os.scandir = FSMock._os_scandir_mock
         DirSyncer.__get_file_properties__ = FSMock._get_file_properties_mock_
         FSMock.left_filetree = FSTree()
         FSMock.right_filetree = FSTree()
@@ -77,13 +83,16 @@ class FSMock:
         os.path.dirname = FSMock.system_os_dirname
         os.path.exists = FSMock.system_os_exists
         os.path.islink = FSMock.system_os_islink
+        os.path.getsize = FSMock.system_os_getsize
         os.remove = FSMock.system_os_remove
         shutil.rmtree = FSMock.system_shutil_rmtree
         os.mkdir = FSMock.system_os_mkdir
         os.makedirs = FSMock.system_os_makedirs
         shutil.copy2 = FSMock.system_shutil_copy2
+        shutil.move = FSMock.system_shutil_move
         os.stat = FSMock.system_os_stat
         os.chmod = FSMock.system_os_chmod
+        os.scandir = FSMock.system_os_scandir
         DirSyncer.__get_file_properties__ = FSMock.actual_get_file_properties
         FSMock.left_filetree = FSTree()
         FSMock.right_filetree = FSTree()
@@ -251,6 +260,14 @@ class FSMock:
             return FSMock.system_os_islink(path)
         return False
     
+    def _os_getsize(path:str) -> int:
+        if not isinstance(path, str):
+            return FSMock.system_os_getsize(path)
+        path = path.replace('\\', '/')
+        if path in FSMock.file_properties:
+            return FSMock.file_properties[path].st_size
+        return 0
+    
     def _os_remove(path):
         FSMock.removed.add(path)
 
@@ -264,7 +281,7 @@ class FSMock:
             FSMock.system_os_mkdir(path,mode)
         FSMock.created_dirs.add(path)
     
-    def _os_makedirs(path):
+    def _os_makedirs(path, exist_ok: bool = False):
         return
     
     def _shutil_copy2(src, dest):
@@ -273,6 +290,9 @@ class FSMock:
         if dest in FSMock.os_copy_failure_paths:
             FSMock._raise_permission_error('(FSMock) shutil.copy2 simulated error', dest)
         FSMock.copied.add((src,dest))
+
+    def _shutil_move(src, dest):
+        return
     
     def _os_stat(path, *, dir_fd: int | None = None, follow_symlinks: bool = True) -> any:
         if not isinstance(path,str):
@@ -283,6 +303,30 @@ class FSMock:
     def _os_chmod(path, mode: int, *, dir_fd: int | None = None, follow_symlinks: bool = True):
         if not isinstance(path,str):
             return FSMock.system_os_chmod(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
+        
+    def _os_scandir_mock(path:str):
+        if not isinstance(path, str):
+            return FSMock.system_os_scandir(path)
+        path = path.replace('\\', '/')
+        if path.startswith('left'):
+            filetree = FSMock.left_filetree
+            relpath = os.path.relpath(path, 'left')
+        elif path.startswith('right'):
+            filetree = FSMock.right_filetree
+            relpath = os.path.relpath(path, 'right')
+        else:
+            return FSMock.system_os_scandir(path)
+        if relpath=='.':
+            relpath = ''
+        if not filetree.exists(relpath, case_sensitive=not FSMock.is_os_fs_windows_style):
+            raise FileNotFoundError(f"(FSMock) os.scandir simulated error: the given path '{path}' does not exist")
+        if not filetree.exists(relpath, create=False, case_sensitive=not FSMock.is_os_fs_windows_style):
+            raise NotADirectoryError(f"(FSMock) os.scandir simulated error: the given path '{path}' is not a directory")
+        fileset = filetree.to_fileset(relpath)
+        entries:list = []
+        for file in fileset:
+            entries.append(FSMock._ScandirEntryMock_(file))
+        return entries
         
     def _raise_permission_error(text:str, path:str):
         err = PermissionError(text)

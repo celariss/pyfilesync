@@ -1,4 +1,7 @@
-from __future__ import annotations # needed for python3 older than 3.14
+from __future__ import annotations
+import fnmatch
+
+from historymode import HISTORY_DIR, HistoryMode # needed for python3 older than 3.14
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
@@ -70,7 +73,7 @@ class SyncData(object):
 
 
 class DirSyncer:
-    def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False) -> CmpData:
+    def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False, verbose:bool=False) -> CmpData:
         """compare two directories and return a CmpData object containing the results
         
         :param leftdir: path to the left directory
@@ -90,6 +93,8 @@ class DirSyncer:
         left_empty_dirs:set = set()
         
         if not exclude: exclude = []
+        exclude.append(fnmatch.translate('/'+HISTORY_DIR+'/'))
+
         exclude_re = []
         for pattern in exclude:
             try:
@@ -138,12 +143,14 @@ class DirSyncer:
         left_dirs = DirSyncer._expand_dirs(left_dirs)
 
         for root, dirs, files in os.walk(rightdir):
-            for d in dirs:
-                path = os.path.relpath(os.path.join(root, d), rightdir)
-                right_dirs.add(path)
-            for f in files:
-                path = os.path.relpath(os.path.join(root, f), rightdir)
-                right_files.add(path)
+            if not root.startswith(os.path.join(rightdir, HISTORY_DIR)):
+                for d in dirs:
+                    path = os.path.relpath(os.path.join(root, d), rightdir)
+                    if path != HISTORY_DIR:
+                        right_dirs.add(path)
+                for f in files:
+                    path = os.path.relpath(os.path.join(root, f), rightdir)
+                    right_files.add(path)
 
         # The following variable will receive the result of folders comparison (see CmpData class)
         cmpdata:CmpData = CmpData()
@@ -199,7 +206,8 @@ class DirSyncer:
         return cmpdata
 
     
-    def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, verbose:bool=False) -> SyncData:
+    def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData,
+                     history_mode_depth:int=0, history_mode_file_max_saved_size:int=0, verbose:bool=False) -> SyncData:
         """synchronize two directories according to the given CmpData results, and return sync results as SyncData"""
 
         syncdata:SyncData = SyncData()
@@ -240,6 +248,7 @@ class DirSyncer:
                     try:
                         if verbose:
                             log('   | Updating %s from %s' % (rightpath, leftpath))
+                        HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):

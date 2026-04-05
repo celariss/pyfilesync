@@ -61,7 +61,8 @@ A minimal example with 1 folder pair is shown below :
 
 An optional `global` section sets parameters that applies to all pairs :
 - all parameters in `global` are optional
-- include/exclude lists in global are appended to include/exclude in each pair
+- include/exclude/include_regex/exclude_regex lists in global are appended to include/exclude in each pair
+- All other parameters can be redefined in any pair
 
 ```json
 {
@@ -69,7 +70,11 @@ An optional `global` section sets parameters that applies to all pairs :
         "include": ["*.txt", "*.mp4"],
         "exclude": ["temp", "*.bak", "*.tmp"],
         "include_regex": [".*/somedir/.*\\.bat"],
-        "exclude_regex": [".*test"]
+        "exclude_regex": [".*test"],
+        "history_mode": {
+            "depth": 10,
+            "file_max_saved_size": 20000000
+        }
     },
     "pairs": [
         {
@@ -99,6 +104,8 @@ Field name        | default<br>value | global<br>section | env vars<br>(*) | Des
 `include_regex`   |   **[ ]**   | yes | yes | list of **regular expressions** that filter the left files to synchronize.<br>note: `include_regex` list is appended to `include`, if any.
 `exclude_regex`     | **[ ]**   | yes | yes | list of **regular expressions** that filter out paths to synchronize.<br>the exclude filters are prioritary over include filters.<br>note: `include` list is appended to `exclude`, if any.
 `cmp_files_content` | **false** | yes | no  | boolean field to force files content instead of modification times as comparison criteria<br>example: ```"cmp_files_content": true```
+`history_mode.depth` | 0        | yes | no  | if >0, history mode is enabled. All files are saved in `.autosave` folder. `depth` is the number of update saved for each file.
+`history_mode.file_max_saved_size` | 0        | yes | no  | Max total bytes of saved updated for a file (0 means no limit). For example, if each saved version of a file has a size of 3Mb and file_max_saved_size is 6Mb, then 2 versions of this file will be saved
 > **(*) : If 'yes', use `$varname` or `${varname}` to reference an environment variable.**
 
 ### About include/exclude patterns

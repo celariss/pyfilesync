@@ -2,10 +2,9 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "1.1.2"
+__version__     = "2.0.0"
 
 import argparse
-import fnmatch
 import sys, os
 
 from syncconfig import *
@@ -160,14 +159,15 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
         return (CmpData(errors=errors), None)
 
     cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex, exclude=pair.exclude_regex,
-                                            compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only)
+                                            compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only, verbose=verbose)
 
     if action=='compare':
         log_compare_result(cmpdata, verbose)
     
     syncdata:SyncData = None
     if action=='sync' and not cmpdata.errors:
-        syncdata = DirSyncer.sync_dirs(left, right, cmpdata, verbose)
+        syncdata = DirSyncer.sync_dirs(left, right, cmpdata, history_mode_depth=pair.history_mode_depth, 
+                                       history_mode_file_max_saved_size=pair.history_mode_file_max_saved_size, verbose=verbose)
         log_sync_result(syncdata, verbose)
     
     cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
