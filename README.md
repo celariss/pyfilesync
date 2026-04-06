@@ -1,5 +1,5 @@
 # pyfilesync
-### A python 3 script that synchronizes multiple folder pairs using a config file.
+### A python 3 script that synchronizes multiple folder pairs and keep copies of modified files.
 
 
 <p align="middle">
@@ -11,10 +11,12 @@
 # Main features
 - tested on both Linux and Windows
 - mode of operation : one-way mirroring (left to right folder)
+- folders and sync parameters read from a json file or string
 - 'Compare' command : finds and prints differences between left and right folders without doing actual synchronization
 - 'sync' command for actual synchronization
 - 'list' command : prints all folder pairs from config file
 - 'restore' option to copy back files from right to left
+- History mode : save copies of modified files (activable from config file)
 - option allowing to process a subset of folder pairs from config file
 - comparison criteria : file size and modification date (or file size and file content if requested)
 - case sensitivity of filesystem is detected to interpret include/exclude pattern correctly
@@ -27,7 +29,7 @@ python pyfilesync -h
 ```
 The message shown is as follow :
 <p align="left">
-    <img src="doc/img/usage.png"/>
+    <img src="doc/img/usage.png" width="800"/>
 </p>
 
 ### Compare command

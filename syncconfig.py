@@ -95,7 +95,7 @@ class SyncConfig:
         """
         try:
             result = json.loads(config)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             return ("Config file is not a valid JSON file")
         if not isinstance(result, dict):
             return ("Config file is not valid, it must contain a dictionary : {...}")

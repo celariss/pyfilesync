@@ -251,7 +251,10 @@ def main(argv):
     argParser = argparse.ArgumentParser(
         description="This script synchronize folders pairs from a config file, in mirror mode (left to right only, left files remain unchanged). It can also be used to show differences between folders pairs, without synchronizing them.",
                                         formatter_class=argparse.RawTextHelpFormatter)
-    argParser.add_argument("config_file", help="path to config file", nargs='?')
+    argParser.add_argument("config", help='''config string or path to config file.
+config string : must be surrounded by quotes ( '...' ) and
+                double quotes must be escaped (\" replaced by \\\")
+                example: '{\\"pairs\\" : [{...}]}' ''', nargs='?')
     argParser.add_argument("action", help='''action, among [list, sync, compare]
  > list: lists pairs in config file
  > sync: actually synchronizes folders
@@ -269,8 +272,8 @@ def main(argv):
         log(version)
         return 0
         
-    if not args.config_file:
-        log_error("the following argument is required: config_file")
+    if not args.config:
+        log_error("the following argument is required: config")
         log("use -h flag to see full help")
         return 1
 
@@ -281,9 +284,14 @@ def main(argv):
         return 2
 
     config:SyncConfig = SyncConfig()
-    error = config.load_file(args.config_file)
+    a:str
+    args.config = args.config.strip('\'"')
+    if args.config.startswith('{') and args.config.endswith('}'):
+        error = config.load_json_string(args.config)
+    else:
+        error = config.load_file(args.config)
     if error:
-        log_error(error+" : "+args.config_file)
+        log_error(error+" : "+args.config)
         return 3
        
     if args.action == 'list':
