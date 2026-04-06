@@ -16,6 +16,8 @@ class TestPyFileSync:
 
         assert main(['-V']) == 0
         assert main(['tests/config1.json', 'list']) == 0
+        assert main(['{"pairs":[{"name":"pair_1","left":"left1","right":"right1","include":["*.mp4","*.txt"]},\
+                                {"name":"pair_2","left":"left2","right":"right2"}]}', 'list']) == 0
 
     def test_syncfolderpairs1(self):
         config:SyncConfig = SyncConfig()

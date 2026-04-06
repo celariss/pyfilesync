@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from helpers import *
+
 HISTORY_DIR = '.autosave'
 HISTORY_PATTERN = '_#{:0>2d}#'
 
@@ -19,7 +21,7 @@ class HistoryMode:
                     os.remove(path)
                 # remove directories if they are empty
                 path = os.path.dirname(HistoryMode.get_history_filepath(basedir, file, 1))
-                while os.path.exists(path) and not any(os.scandir(path)):
+                while os.path.exists(path) and is_dir_empty(path):
                     os.rmdir(path)
                     path = os.path.dirname(path)
                 return

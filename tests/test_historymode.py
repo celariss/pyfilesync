@@ -46,3 +46,58 @@ class TestDatasaver:
         for test_case in test_cases:
             basedir, file, num, expected = test_case
             assert HistoryMode.get_history_filepath(basedir.replace('/', os.sep), file.replace('/', os.sep), num) == expected.replace('/', os.sep)
+
+    def test_save_file_and_get_file_history(self):
+        basedir = 'tests/historymode_test'
+        file = os.path.join(basedir, 'file')
+
+        shutil.rmtree(basedir, ignore_errors=True)
+        TestDatasaver._create_file(file, '###file###')
+
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 0
+        assert len(sizes) == 0
+        
+        file1 = os.path.join(basedir, HISTORY_DIR, 'file'+HISTORY_PATTERN.format(1))
+        TestDatasaver._create_file(file1, 'test')
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 1
+        assert len(sizes) == 1
+        assert all(size == 4 for size in sizes)
+
+        file2 = os.path.join(basedir, HISTORY_DIR, 'file'+HISTORY_PATTERN.format(2))
+        TestDatasaver._create_file(file2, 'test#')
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 2
+        assert len(sizes) == 2
+        assert sizes[0] == 4
+        assert sizes[1] == 5
+
+        HistoryMode.save_file(basedir, file, 3, 0)
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 3
+        assert len(sizes) == 3
+        assert sizes[0] == 10 # '###file###'
+        assert sizes[1] == 4 # 'test'
+        assert sizes[2] == 5 # 'test#'
+
+        TestDatasaver._create_file(file, '###file###__')
+        HistoryMode.save_file(basedir, file, 2, 0)
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 2
+        assert len(sizes) == 2
+        assert sizes[0] == 12 # '###file###__'
+        assert sizes[1] == 10 # '###file###'
+
+        TestDatasaver._create_file(file, '###file###__')
+        HistoryMode.save_file(basedir, file, 2, 9)
+        paths, sizes = HistoryMode.get_file_history(basedir, file)
+        assert len(paths) == 0
+        assert len(sizes) == 0
+
+        shutil.rmtree(basedir, ignore_errors=True)
+
+    def _create_file(path, content='test'):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(content)

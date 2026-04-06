@@ -27,3 +27,7 @@ def replace_env_variables(text: str) -> str:
     :return: text with env variables replaced
     """
     return os.path.expandvars(text)
+
+def is_dir_empty(path: str) -> bool:
+    with os.scandir(path) as d:
+        return not any(d)
