@@ -27,7 +27,7 @@ class GlobalSection:
         if not isinstance(history_data, dict):
             return "Config file is not valid, 'history_mode' must be a dictionary"
         self.history_mode_depth = history_data.get('depth', 0)
-        self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', 0)
+        self.history_mode_file_max_saved_size = value_with_unit_to_int(history_data.get('file_max_saved_size', 0), 0)
         return None
         
 
@@ -59,7 +59,13 @@ class PairSection:
         if not isinstance(history_data, dict):
             return "Config file is not valid, 'history_mode' must be a dictionary"
         self.history_mode_depth = history_data.get('depth', globalconfig.history_mode_depth)
-        self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', globalconfig.history_mode_file_max_saved_size)
+        self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', -1)
+        if self.history_mode_file_max_saved_size != -1:
+            self.history_mode_file_max_saved_size = value_with_unit_to_int(self.history_mode_file_max_saved_size, -1)
+            if self.history_mode_file_max_saved_size == -1:
+                return "Config file is not valid, 'history_mode.file_max_saved_size' value is not valid"
+        else:
+            self.history_mode_file_max_saved_size = globalconfig.history_mode_file_max_saved_size
         return None
 
 class SyncConfig:
