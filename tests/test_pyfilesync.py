@@ -7,12 +7,15 @@ from tests.fstree import FSTree
 class TestPyFileSync:
     def test_main(self):
         assert main([]) == 1
+        # bad config file
         assert main(['tests/config2.json', '-v']) == 3
         assert main(['tests/config1.json', 'bad_action', '-v']) == 2
         # bad pair name
         assert main(['tests/config1.json', '-p', 'bad_pair', '-v']) == 4
         # left folders do not exist
         assert main(['tests/config1.json', '-v']) == 4
+        # bad 'file_max_saved_size' value in config file
+        assert main(['{"global":{"history_mode": {"depth": 0, "file_max_saved_size":"100fkb"}},"pairs":[]}']) == 3
 
         assert main(['-V']) == 0
         assert main(['tests/config1.json', 'list']) == 0

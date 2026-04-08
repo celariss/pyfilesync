@@ -21,7 +21,10 @@ class TestSyncConfig:
 
         assert config.load_json_string('{"global":{"history_mode": {"depth": 0}},"pairs":[]}') == None
         assert config.load_json_string('{"global":{"history_mode": {"depth": 0, "file_max_saved_size":"100kb"}},"pairs":[]}') == None
+        assert config.load_json_string('{"global":{"history_mode": {"depth": 0, "file_max_saved_size":"100fkb"}},"pairs":[]}') # bad unit in file_max_saved_size
         assert config.load_json_string('{"pairs":[{"left":"", "right":"", "history_mode": {"depth": 0, "file_max_saved_size":"100kb"}}]}') == None
+        assert config.load_json_string('{"pairs":[{"left":"", "right":"", "history_mode": {"depth": 0, "file_max_saved_size":"100fM"}}]}') # bad unit in file_max_saved_size
+        
 
         assert config.load_json_string('{"global":{"include":["*.bat"], "exclude":["*.py"], "include_regex":["..*$"], "exclude_regex":["^[a-z]"]}, "pairs":[{"left":"","right":""}]}') == None
         assert len(config.pairs) == 1
