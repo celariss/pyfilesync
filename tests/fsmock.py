@@ -15,11 +15,13 @@ class FSMock:
     """This class is used to mock some system apis from "os" module"""
         
     # static variables to handle os.walk mocking
+    system_os_sep = os.path.sep
     system_os_walk  = os.walk
     system_os_isdir = os.path.isdir
     system_os_isfile = os.path.isfile
     system_os_join = os.path.join
     system_os_relpath = os.path.relpath
+    system_os_normpath = os.path.normpath
     system_os_dirname = os.path.dirname
     system_os_exists = os.path.exists
     system_os_islink = os.path.islink
@@ -38,7 +40,7 @@ class FSMock:
     left_filetree:FSTree = FSTree()
     right_filetree:FSTree = FSTree()
     file_properties:dict[str,DirSyncer.FileProperties] = {}
-    is_os_fs_windows_style:bool = False
+    is_os_fs_windows_style:bool = (os.path.sep == '\\')
     os_path_exists_values:dict[str,bool] = {}
     os_rmdir_failure_paths:dict[str,bool] = {}
     os_copy_failure_paths:dict[str,bool] = {}
@@ -48,11 +50,14 @@ class FSMock:
     created_dirs:set = set()
     
     def install_os_mock():
+        FSMock.system_os_sep = os.path.sep
+        os.path.sep = '\\' if FSMock.is_os_fs_windows_style else '/'
         os.walk = FSMock._os_walk_mock_
         os.path.isdir = FSMock._os_isdir_mock_
         os.path.isfile = FSMock._os_isfile_mock_
         os.path.join = FSMock._os_join_mock_
         os.path.relpath = FSMock._os_relpath_mock_
+        os.path.normpath = FSMock._os_normpath
         os.path.dirname = FSMock._os_dirname_mock_
         os.path.exists = FSMock._os_exists
         os.path.islink = FSMock._os_islink
@@ -75,11 +80,13 @@ class FSMock:
         FSMock.os_copy_failure_paths.clear()
 
     def uninstall_os_mock():
+        os.path.sep = FSMock.system_os_sep
         os.walk = FSMock.system_os_walk
         os.path.isdir = FSMock.system_os_isdir
         os.path.isfile = FSMock.system_os_isfile
         os.path.join = FSMock.system_os_join
         os.path.relpath = FSMock.system_os_relpath
+        os.path.normpath = FSMock.system_os_normpath
         os.path.dirname = FSMock.system_os_dirname
         os.path.exists = FSMock.system_os_exists
         os.path.islink = FSMock.system_os_islink
@@ -102,6 +109,10 @@ class FSMock:
         FSMock.left_filetree = left_filetree
         FSMock.right_filetree = right_filetree
         FSMock.file_properties = file_properties if file_properties else {}
+
+    def set_os_fs_style(is_windows_style:bool):
+        FSMock.is_os_fs_windows_style = is_windows_style
+        os.path.sep = '\\' if is_windows_style else '/'
 
     def clean_sync_data():
         FSMock.copied = set()
@@ -185,6 +196,16 @@ class FSMock:
         p2 = path2.split(sep)
         p = sep.join(p1[len(p2):])
         return p
+    
+    def _os_normpath(path:str) -> str:
+         # If path is not a string, it means that it is called from pytest, we call the real os.path.normpath on it
+        if not isinstance(path, str):
+            return FSMock.system_os_normpath(path)
+        path = path.replace('\\', os.path.sep).replace('/', os.path.sep)
+        if FSMock.is_os_fs_windows_style:
+            return FSMock.system_os_normpath(path).replace('/', '\\')
+        else:
+            return FSMock.system_os_normpath(path).replace('\\', '/')
         
     def _os_dirname_mock_(path:str) -> str:
         # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
@@ -211,17 +232,26 @@ class FSMock:
         else:
             return '\\'.join(folders[1:])
     
-    def _os_walk_mock_(path:str, filetree:list=None) -> list[tuple]:
+    def _os_walk_mock_(path:str, filetree:list=None, topdown:bool=True) -> list[tuple]:
         if not isinstance(path, str):
             return FSMock.system_os_walk(path)
         #log(f"os_walk_mock called with path: {path}")
+        cur_node:list = None
         if filetree is None:
             if path.startswith('left'):
                 filetree = FSMock.left_filetree.rootnode()
             elif path.startswith('right'):
                 filetree = FSMock.right_filetree.rootnode()
+            if FSMock.is_os_fs_windows_style:
+                sep = '\\'
+            else:
+                sep = '/'
+            if sep in path:
+                subpath = os.path.join(*(path.split(sep)[1:]))
+                cur_node = FSTree.find_node(filetree, subpath+'/')
         cur_root = path
-        cur_node:list = filetree
+        if cur_node is None:
+            cur_node = filetree
         result = []
         files:list = []
         dirs:list = []

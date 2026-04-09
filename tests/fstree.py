@@ -40,7 +40,7 @@ class FSTree:
         if filelist:
             cur_level:int = 0
             for file in filelist:
-                cur_node = FSTree._find_node_(filetree, file, True)
+                cur_node = FSTree.find_node(filetree, file, True)
         return FSTree(filetree)
     
     def to_fileset(self, root:str='', no_empty_dirs:bool = False) -> set:
@@ -60,12 +60,12 @@ class FSTree:
     
     def exists(self, path:str, create:bool = False, case_sensitive:bool = False) -> bool:
         path = path.replace('\\', '/')
-        res = FSTree._find_node_(self.filetree, path, create, case_sensitive)
+        res = FSTree.find_node(self.filetree, path, create, case_sensitive)
         if not res:
-            res = FSTree._find_node_(self.filetree, path+'/', create, case_sensitive)
+            res = FSTree.find_node(self.filetree, path+'/', create, case_sensitive)
         return res != None
     
-    def _find_node_(tree:list, path:str, create:bool = False, case_sensitive:bool = True) -> list:
+    def find_node(tree:list, path:str, create:bool = False, case_sensitive:bool = True) -> list:
         isdir = path.endswith('/')
         pathitems:list
         if isdir:

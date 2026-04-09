@@ -98,7 +98,8 @@ class TestSyncDirs:
         nb:int = 0
         for cmp_data, sync_data, copied, created_dirs, removed, removed_dirs in dataset:
             nb += 1
-            for FSMock.is_os_fs_windows_style in [False, True]:
+            for is_os_fs_windows_style in [False, True]:
+                FSMock.set_os_fs_style(is_os_fs_windows_style)
                 text = 'Windows' if FSMock.is_os_fs_windows_style else 'Linux'
                 text = funcname+':Test case #%d (%s paths)' % (nb,text)
                 FSMock.clean_sync_data()

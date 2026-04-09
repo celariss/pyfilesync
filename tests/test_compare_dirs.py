@@ -137,16 +137,17 @@ class TestCompareDirs:
         TestCompareDirs._execute_test_cases_(dataset, 'test_compare_dirs_other')
     
     def _execute_test_cases_(dataset:list, funcname:str):
-        FSMock.install_os_mock()
         nb:int = 0
         for left_filetree, right_filetree, include, exclude, fileproperties, ignore_right_only, expected in dataset:
             nb += 1
-            FSMock.set_fsmock_data(FSTree(left_filetree), FSTree(right_filetree), fileproperties)
-            for FSMock.is_os_fs_windows_style in [True, False]:
+            for is_os_fs_windows_style in [True, False]:
+                FSMock.install_os_mock()
+                FSMock.set_fsmock_data(FSTree(left_filetree), FSTree(right_filetree), fileproperties)
+                FSMock.set_os_fs_style(is_os_fs_windows_style)
                 text = 'Windows' if FSMock.is_os_fs_windows_style else 'Linux'
                 compare_result = DirSyncer.compare_dirs(
                     'left', 'right', [fnmatch.translate(x) for x in include],
                     [fnmatch.translate(x) for x in exclude], ignore_right_only=ignore_right_only
                 )
+                FSMock.uninstall_os_mock()
                 assert are_cmpdata_equal(compare_result, expected, funcname+':Test case #%d (%s paths)' % (nb, text))
-        FSMock.uninstall_os_mock()

@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "2.0.0"
+__version__     = "2.0.1"
 
 import argparse
 import sys, os
@@ -181,8 +181,8 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     return (cmpdata, syncdata)
 
 
-def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] = None, create_root:bool = False,
-                       restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> bool:
+def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = None, create_root:bool = False,
+                       restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> FolderPairsSyncResults:
     """synchronize folders pairs in mirror mode (left to right or right to left, source files remain unchanged)
 
     :param config: config data as a dict, loaded from config file
@@ -203,7 +203,6 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] =
                 res.errors.add((pair_name, text))
                 return res
 
-    
     if action not in ['compare', 'sync']:
         text = "Invalid action given : '%s'" % action
         log_error(text)
@@ -245,6 +244,38 @@ def sync_folders_pairs(config:SyncConfig, action: str, pairs2process:list[str] =
             log("No error encountered")
 
     return res
+
+def show_saved_files(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
+    res = FolderPairsSyncResults()
+
+    if pairs2process is not None:
+        for pair_name in pairs2process:
+            if not any(pair.name == pair_name for pair in config.pairs):
+                text = "No pair with name '%s' found in config file" % pair_name
+                log_error(text)
+                res.errors.add((pair_name, text))
+                return res
+    
+    for pair in config.pairs:
+        if (not pairs2process) or (pair.name in pairs2process):
+            left = replace_env_variables(pair.left)
+            right = replace_env_variables(pair.right)
+            name = pair.name
+            log('')
+            log('Pair "'+name+'" : ')
+            history_dir = os.path.join(right, HISTORY_DIR)
+            if os.path.exists(history_dir):
+                files_info = HistoryMode.get_files_info_in_history_dir(history_dir)
+                if files_info:
+                    for file_info in files_info:
+                        file, historyfilepaths, historyfilesizes = file_info
+                        totalsize = sum(historyfilesizes)
+                        log("  | ."+os.path.sep+file+" : %d version(s), %s (total size)" % (len(historyfilepaths), format_size(totalsize)))
+                else:
+                    log("  (No saved files)")
+            else:
+                log("  (No saved files)")
+    return res
         
 
 def main(argv):
@@ -255,10 +286,11 @@ def main(argv):
 config string : must be surrounded by quotes ( '...' ) and
                 double quotes must be escaped (\" replaced by \\\")
                 example: '{\\"pairs\\" : [{...}]}' ''', nargs='?')
-    argParser.add_argument("action", help='''action, among [list, sync, compare]
+    argParser.add_argument("action", help='''action, among [list, sync, compare, show_saved_files]
  > list: lists pairs in config file
  > sync: actually synchronizes folders
- > compare: (default) only shows differences between folders''', nargs='?')
+ > compare: (default) only shows differences between folders
+ > show_saved_files: display saved versions of all files ''', nargs='?')
     argParser.add_argument("-p", "--pair", help="select one (or more) specific pair(s) by name", nargs='+', dest='pairs', default=None)
     argParser.add_argument("-c", "--create", help="create root target folder of each pair if needed", action='store_true')
     argParser.add_argument("-r", "--restore", help="change sync direction to restore files (right -> left)", action='store_true')
@@ -279,7 +311,7 @@ config string : must be surrounded by quotes ( '...' ) and
 
     if (args.action is None):
         args.action = 'compare'
-    elif (args.action not in ['list', 'sync', 'compare']):
+    elif (args.action not in ['list', 'sync', 'compare', 'show_saved_files']):
         log_error('invalid action given : '+args.action)
         return 2
 
@@ -303,6 +335,10 @@ config string : must be surrounded by quotes ( '...' ) and
             log('Pair "'+name+'" : ')
             log('  | Left : '+left)
             log('  | Right: '+right)
+    elif args.action == 'show_saved_files':
+        res = show_saved_files(config)
+        if res.errors:
+            return 4
     else:
         res = sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
         if res.errors:

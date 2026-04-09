@@ -31,7 +31,7 @@ class TestPyFileSync:
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt', 'file3'})),
             FSTree(set({'dir1/', 'dir2/file1.mp4', 'dir2/dir3/file2.txt'}))
         )
-        FSMock.is_os_fs_windows_style = False
+        FSMock.set_os_fs_style(False)
 
         # TEST CASE #1 (error) : 'tests/config1.json' - Right folder does not exist in compare
         nb = 1
