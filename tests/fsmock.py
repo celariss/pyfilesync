@@ -14,12 +14,24 @@ from tests.fstree import FSTree
 
 class FSMock:
     """This class is used to mock some system apis from "os" module"""
+
+    def __init__(self):
+        pass
+    def close(self):
+        FSMock.uninstall_os_mock()
+    def __enter__(self):
+        FSMock.install_os_mock()
+        return self
+    def __exit__(self, *a):
+        self.close()
+
         
     # static variables to handle os.walk mocking
     #system_os_sep = os.path.sep
     system_os_walk  = os.walk
     system_os_isdir = os.path.isdir
     system_os_isfile = os.path.isfile
+    system_os_split = os.path.split
     system_os_join = os.path.join
     system_os_relpath = os.path.relpath
     system_os_normpath = os.path.normpath
@@ -41,7 +53,8 @@ class FSMock:
     left_filetree:FSTree = FSTree()
     right_filetree:FSTree = FSTree()
     file_properties:dict[str,DirSyncer.FileProperties] = {}
-    is_os_fs_windows_style:bool = (os.path.sep == '\\')
+    is_os_fs_windows_style:bool = False
+    os_path_sep:str = ''
     os_path_exists_values:dict[str,bool] = {}
     os_rmdir_failure_paths:dict[str,bool] = {}
     os_copy_failure_paths:dict[str,bool] = {}
@@ -51,11 +64,10 @@ class FSMock:
     created_dirs:set = set()
     
     def install_os_mock():
-        #FSMock.system_os_sep = os.path.sep
-        #os.path.sep = '\\' if FSMock.is_os_fs_windows_style else '/'
         os.walk = FSMock._os_walk_mock_
         os.path.isdir = FSMock._os_isdir_mock_
         os.path.isfile = FSMock._os_isfile_mock_
+        os.path.split = FSMock._os_split_mock_
         os.path.join = FSMock._os_join_mock_
         os.path.relpath = FSMock._os_relpath_mock_
         os.path.normpath = FSMock._os_normpath
@@ -76,15 +88,23 @@ class FSMock:
         FSMock.left_filetree = FSTree()
         FSMock.right_filetree = FSTree()
         FSMock.file_properties = {}
+        FSMock.clean_sync_data()
+        FSMock.set_os_fs_style(os.path.sep == '\\')
+
+    def clean_sync_data():
+        FSMock.copied = set()
+        FSMock.removed = set()
+        FSMock.removed_dirs = set()
+        FSMock.created_dirs = set()
         FSMock.os_path_exists_values.clear()
         FSMock.os_rmdir_failure_paths.clear()
         FSMock.os_copy_failure_paths.clear()
 
     def uninstall_os_mock():
-        #os.path.sep = FSMock.system_os_sep
         os.walk = FSMock.system_os_walk
         os.path.isdir = FSMock.system_os_isdir
         os.path.isfile = FSMock.system_os_isfile
+        os.path.split = FSMock.system_os_split
         os.path.join = FSMock.system_os_join
         os.path.relpath = FSMock.system_os_relpath
         os.path.normpath = FSMock.system_os_normpath
@@ -113,17 +133,8 @@ class FSMock:
 
     def set_os_fs_style(is_windows_style:bool):
         FSMock.is_os_fs_windows_style = is_windows_style
-        #os.path.sep = '\\' if is_windows_style else '/'
+        FSMock.os_path_sep = '\\' if is_windows_style else '/'
 
-    def clean_sync_data():
-        FSMock.copied = set()
-        FSMock.removed = set()
-        FSMock.removed_dirs = set()
-        FSMock.created_dirs = set()
-        FSMock.os_path_exists_values.clear()
-        FSMock.os_rmdir_failure_paths.clear()
-        FSMock.os_copy_failure_paths.clear()
-    
     def _find_dirs_node_(treenode:list) -> dict:
         for item in treenode:
             if isinstance(item,dict):
@@ -171,6 +182,16 @@ class FSMock:
         if FSMock._called_from_outside(path):
             return FSMock.system_os_isfile(path)
         return FSMock._os_isdirorfile_mock_(path, False)
+    
+    def _os_split_mock_(path:str) -> tuple[str, str]:
+        if FSMock._called_from_outside(path):
+            return FSMock.system_os_split(path)
+        path = path.replace('\\', '/')
+        if '/' in path:
+            idx = path.rindex('/')
+            return path[0:idx].replace('/', FSMock.os_path_sep), path[idx+1:]
+        else:
+            return '', path
     
     def _os_join_mock_(path, *paths) -> str:
         if FSMock._called_from_outside(path):

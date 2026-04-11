@@ -93,31 +93,30 @@ class TestSyncDirs:
         TestSyncDirs._execute_test_cases_(dataset, 'test_sync')
 
     def _execute_test_cases_(dataset:list, funcname:str):
-        FSMock.install_os_mock()
-        FSMock.set_fsmock_data(FSTree(set({'dir2/'})), FSTree())
-        nb:int = 0
-        for cmp_data, sync_data, copied, created_dirs, removed, removed_dirs in dataset:
-            nb += 1
-            for is_os_fs_windows_style in [False, True]:
-                FSMock.set_os_fs_style(is_os_fs_windows_style)
-                text = 'Windows' if FSMock.is_os_fs_windows_style else 'Linux'
-                text = funcname+':Test case #%d (%s paths)' % (nb,text)
-                FSMock.clean_sync_data()
+        with FSMock():
+            FSMock.set_fsmock_data(FSTree(set({'dir2/'})), FSTree())
+            nb:int = 0
+            for cmp_data, sync_data, copied, created_dirs, removed, removed_dirs in dataset:
+                nb += 1
+                for is_os_fs_windows_style in [False, True]:
+                    FSMock.set_os_fs_style(is_os_fs_windows_style)
+                    text = 'Windows' if FSMock.is_os_fs_windows_style else 'Linux'
+                    text = funcname+':Test case #%d (%s paths)' % (nb,text)
+                    FSMock.clean_sync_data()
 
-                sync_result = DirSyncer.sync_dirs('left', 'right', cmp_data)
-                assert TestSyncDirs.are_syncdata_equal(sync_result, sync_data, text)
-                
-                if FSMock.is_os_fs_windows_style: copied = set({(src.replace('/','\\'), dest.replace('/','\\')) for (src,dest) in copied})
-                if FSMock.copied != copied:
-                    log(f'"copied list" differs in {text} : (1=result of sync_dirs, 2=expected result)')
-                    log(f"1> {str(FSMock.copied)} != ")
-                    log(f"2> {str(copied)}")
-                assert FSMock.copied == copied
+                    sync_result = DirSyncer.sync_dirs('left', 'right', cmp_data)
+                    assert TestSyncDirs.are_syncdata_equal(sync_result, sync_data, text)
+                    
+                    if FSMock.is_os_fs_windows_style: copied = set({(src.replace('/','\\'), dest.replace('/','\\')) for (src,dest) in copied})
+                    if FSMock.copied != copied:
+                        log(f'"copied list" differs in {text} : (1=result of sync_dirs, 2=expected result)')
+                        log(f"1> {str(FSMock.copied)} != ")
+                        log(f"2> {str(copied)}")
+                    assert FSMock.copied == copied
 
-                if FSMock.is_os_fs_windows_style: created_dirs = set({path.replace('/','\\') for path in created_dirs})
-                if FSMock.created_dirs != created_dirs:
-                    log(f'"created_dirs list" differs in {text} : (1=result of sync_dirs, 2=expected result)')
-                    log(f"1> {str(FSMock.created_dirs)} != ")
-                    log(f"2> {str(created_dirs)}")
-                assert FSMock.created_dirs == created_dirs
-        FSMock.uninstall_os_mock()
+                    if FSMock.is_os_fs_windows_style: created_dirs = set({path.replace('/','\\') for path in created_dirs})
+                    if FSMock.created_dirs != created_dirs:
+                        log(f'"created_dirs list" differs in {text} : (1=result of sync_dirs, 2=expected result)')
+                        log(f"1> {str(FSMock.created_dirs)} != ")
+                        log(f"2> {str(created_dirs)}")
+                    assert FSMock.created_dirs == created_dirs

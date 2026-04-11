@@ -2,7 +2,20 @@ from historymode import *
 from tests.fsmock import FSMock
 from tests.fstree import FSTree
 
-class TestDatasaver:
+def create_history_files_set(files_data:set[tuple[str,int]], nbversionstoremove:int = 0) -> tuple[set,set]:
+        files:set = set()
+        history:set = set()
+        for file_data in files_data:
+            file, nb = file_data
+            basename, ext = os.path.splitext(file)
+            basename = basename.replace('/', os.sep)
+            files.add(file)
+            for i in range(nbversionstoremove, nb):
+                history_basename = os.path.join(HISTORY_DIR, basename)
+                history.add((history_basename + HISTORY_FORMAT + ext).format(i+1).replace(os.sep, '/'))
+        return files, history
+
+class TestHistoryMode:
     def test_get_nb_history_files_to_keep(self):
         test_cases = [
             (100, [], 5, 10, -1),
@@ -67,21 +80,21 @@ class TestDatasaver:
         file = os.path.join(basedir, 'file')
 
         shutil.rmtree(basedir, ignore_errors=True)
-        TestDatasaver._create_file(file, '###file###')
+        TestHistoryMode._create_file(file, '###file###')
 
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 0
         assert len(sizes) == 0
         
         file1 = os.path.join(basedir, HISTORY_DIR, 'file'+HISTORY_FORMAT.format(1))
-        TestDatasaver._create_file(file1, 'test')
+        TestHistoryMode._create_file(file1, 'test')
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 1
         assert len(sizes) == 1
         assert all(size == 4 for size in sizes)
 
         file2 = os.path.join(basedir, HISTORY_DIR, 'file'+HISTORY_FORMAT.format(2))
-        TestDatasaver._create_file(file2, 'test#')
+        TestHistoryMode._create_file(file2, 'test#')
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 2
         assert len(sizes) == 2
@@ -96,7 +109,7 @@ class TestDatasaver:
         assert sizes[1] == 4 # 'test'
         assert sizes[2] == 5 # 'test#'
 
-        TestDatasaver._create_file(file, '###file###__')
+        TestHistoryMode._create_file(file, '###file###__')
         HistoryMode.save_file(basedir, file, 2, 0)
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 2
@@ -104,7 +117,7 @@ class TestDatasaver:
         assert sizes[0] == 12 # '###file###__'
         assert sizes[1] == 10 # '###file###'
 
-        TestDatasaver._create_file(file, '###file###__')
+        TestHistoryMode._create_file(file, '###file###__')
         HistoryMode.save_file(basedir, file, 2, 9)
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 0
@@ -117,25 +130,19 @@ class TestDatasaver:
             (2, 0, set({('file1', 4), ('dir1/file2.txt', 5), ('dir1/dir2/file3.txt', 3)})),
         ]
 
-        for maxnbfiles, maxsize, files_data in test_cases:
-            files:set = set()
-            expected:set = set()
-            for file_data in files_data:
-                file, nb = file_data
-                basename, ext = os.path.splitext(file)
-                basename = basename.replace('/', os.sep)
-                files.add(file)
-                for i in range(nb):
-                    history_basename = os.path.join(HISTORY_DIR, basename)
-                    files.add((history_basename + HISTORY_FORMAT + ext).format(i+1).replace(os.sep, '/'))
-                    if i>=maxnbfiles:
-                        expected.add(os.path.join('left', (history_basename + HISTORY_FORMAT + ext).format(i+1)).replace(os.sep, '/'))
-            FSMock.install_os_mock()
-            FSMock.set_os_fs_style(False)
-            FSMock.set_fsmock_data(FSTree(files), FSTree(), None)
-            HistoryMode.clean_history('left', maxnbfiles, maxsize)
-            FSMock.uninstall_os_mock()
-            assert expected == FSMock.removed
+        with FSMock():
+            for maxnbfiles, maxsize, files_data in test_cases:
+                expected:set = set()
+                files, history = create_history_files_set(files_data)
+                tmp, expected = create_history_files_set(files_data, maxnbfiles)
+                expected = set({'right/'+item for item in expected})
+                for fs_style in [False, True]:
+                    FSMock.clean_sync_data()
+                    FSMock.set_os_fs_style(fs_style)
+                    FSMock.set_fsmock_data(FSTree(), FSTree(files | history), None)
+                    HistoryMode.clean_history('right', maxnbfiles, maxsize)
+                    expected = set({item.replace('/', FSMock.os_path_sep) for item in expected})
+                    assert FSMock.removed == expected
 
     def _create_file(path, content='test'):
         os.makedirs(os.path.dirname(path), exist_ok=True)

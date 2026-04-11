@@ -180,6 +180,16 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     
     return (cmpdata, syncdata)
 
+def check_pairs2process(config:SyncConfig, pairs2process:list[str], res:FolderPairsSyncResults) -> bool:
+    if pairs2process is not None:
+        for pair_name in pairs2process:
+            if not any(pair.name == pair_name for pair in config.pairs):
+                text = "No pair with name '%s' found in config file" % pair_name
+                log_error(text)
+                res.errors.add((pair_name, text))
+                return False
+    return True
+
 
 def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = None, create_root:bool = False,
                        restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> FolderPairsSyncResults:
@@ -195,13 +205,8 @@ def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = 
     """
     res:FolderPairsSyncResults = FolderPairsSyncResults()
 
-    if pairs2process is not None:
-        for pair_name in pairs2process:
-            if not any(pair.name == pair_name for pair in config.pairs):
-                text = "No pair with name '%s' found in config file" % pair_name
-                log_error(text)
-                res.errors.add((pair_name, text))
-                return res
+    if not check_pairs2process(config, pairs2process, res):
+        return res
 
     if action not in ['compare', 'sync']:
         text = "Invalid action given : '%s'" % action
@@ -248,13 +253,8 @@ def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = 
 def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
     res = FolderPairsSyncResults()
 
-    if pairs2process is not None:
-        for pair_name in pairs2process:
-            if not any(pair.name == pair_name for pair in config.pairs):
-                text = "No pair with name '%s' found in config file" % pair_name
-                log_error(text)
-                res.errors.add((pair_name, text))
-                return res
+    if not check_pairs2process(config, pairs2process, res):
+        return res
     
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
@@ -281,13 +281,8 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
 def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:bool = False) -> FolderPairsSyncResults:
     res = FolderPairsSyncResults()
 
-    if pairs2process is not None:
-        for pair_name in pairs2process:
-            if not any(pair.name == pair_name for pair in config.pairs):
-                text = "No pair with name '%s' found in config file" % pair_name
-                log_error(text)
-                res.errors.add((pair_name, text))
-                return res
+    if not check_pairs2process(config, pairs2process, res):
+        return res
     
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
