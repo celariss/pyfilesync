@@ -32,6 +32,14 @@ def replace_env_variables(text: str) -> str:
 def is_dir_empty(path: str) -> bool:
     with os.scandir(path) as d:
         return not any(d)
+    
+def remove_empty_part_of_path(dirpath):
+    while os.path.exists(dirpath) and is_dir_empty(dirpath):
+        try:
+            os.rmdir(dirpath)
+            dirpath = os.path.dirname(dirpath)
+        except OSError:
+            break
 
 tokenizer = re.compile(r'^[ \t]*(\d+)[ \t]*([a-zA-Z]*)?[ \t]*$')
 

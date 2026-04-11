@@ -5,6 +5,7 @@ __license__     = "BSD-3-Clause"
 
 import os
 import re
+import traceback
 from tests.fstree import FSTree
 import shutil 
 from dirsyncer import DirSyncer
@@ -15,7 +16,7 @@ class FSMock:
     """This class is used to mock some system apis from "os" module"""
         
     # static variables to handle os.walk mocking
-    system_os_sep = os.path.sep
+    #system_os_sep = os.path.sep
     system_os_walk  = os.walk
     system_os_isdir = os.path.isdir
     system_os_isfile = os.path.isfile
@@ -50,8 +51,8 @@ class FSMock:
     created_dirs:set = set()
     
     def install_os_mock():
-        FSMock.system_os_sep = os.path.sep
-        os.path.sep = '\\' if FSMock.is_os_fs_windows_style else '/'
+        #FSMock.system_os_sep = os.path.sep
+        #os.path.sep = '\\' if FSMock.is_os_fs_windows_style else '/'
         os.walk = FSMock._os_walk_mock_
         os.path.isdir = FSMock._os_isdir_mock_
         os.path.isfile = FSMock._os_isfile_mock_
@@ -80,7 +81,7 @@ class FSMock:
         FSMock.os_copy_failure_paths.clear()
 
     def uninstall_os_mock():
-        os.path.sep = FSMock.system_os_sep
+        #os.path.sep = FSMock.system_os_sep
         os.walk = FSMock.system_os_walk
         os.path.isdir = FSMock.system_os_isdir
         os.path.isfile = FSMock.system_os_isfile
@@ -112,7 +113,7 @@ class FSMock:
 
     def set_os_fs_style(is_windows_style:bool):
         FSMock.is_os_fs_windows_style = is_windows_style
-        os.path.sep = '\\' if is_windows_style else '/'
+        #os.path.sep = '\\' if is_windows_style else '/'
 
     def clean_sync_data():
         FSMock.copied = set()
@@ -162,31 +163,27 @@ class FSMock:
         return False
     
     def _os_isdir_mock_(path:str) -> bool:
-        # If path is not a string, it means that it is called from pytest, we call the real os.path.isdir on it
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_isdir(path)
         return FSMock._os_isdirorfile_mock_(path, True)
     
     def _os_isfile_mock_(path:str) -> bool:
-        # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_isfile(path)
         return FSMock._os_isdirorfile_mock_(path, False)
     
-    def _os_join_mock_(path1, *paths) -> str:
-         # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
-        if not isinstance(path1, str):
-            return FSMock.system_os_join(path1, *paths)
-        path1 = path1.replace('\\', os.path.sep).replace('/', os.path.sep)
+    def _os_join_mock_(path, *paths) -> str:
+        if FSMock._called_from_outside(path):
+            return FSMock.system_os_join(path, *paths)
+        path = path.replace('\\', os.path.sep).replace('/', os.path.sep)
         paths2:tuple = (p.replace('\\', os.path.sep).replace('/', os.path.sep) for p in paths)
         if FSMock.is_os_fs_windows_style:
-            return FSMock.system_os_join(path1, *paths2).replace('/', '\\')
+            return FSMock.system_os_join(path, *paths2).replace('/', '\\')
         else:
-            return FSMock.system_os_join(path1, *paths2).replace('\\', '/')
+            return FSMock.system_os_join(path, *paths2).replace('\\', '/')
         
     def _os_relpath_mock_(path1:str, path2:str) -> str:
-         # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
-        if not isinstance(path1, str):
+        if FSMock._called_from_outside(path1):
             return FSMock.system_os_relpath(path1, path2)
         if FSMock.is_os_fs_windows_style:
             sep = '\\'
@@ -197,9 +194,13 @@ class FSMock:
         p = sep.join(p1[len(p2):])
         return p
     
+    def _called_from_outside(path:str) -> bool:
+        if (not isinstance(path, str)) or os.path.isabs(path):
+            return True
+        return False
+    
     def _os_normpath(path:str) -> str:
-         # If path is not a string, it means that it is called from pytest, we call the real os.path.normpath on it
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_normpath(path)
         path = path.replace('\\', os.path.sep).replace('/', os.path.sep)
         if FSMock.is_os_fs_windows_style:
@@ -208,8 +209,7 @@ class FSMock:
             return FSMock.system_os_normpath(path).replace('\\', '/')
         
     def _os_dirname_mock_(path:str) -> str:
-        # If path is not a string, it means that it is called from pytest, we call the real os.path.isfile on it
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_dirname(path)
         path = path.replace('\\', os.path.sep).replace('/', os.path.sep)
         if FSMock.is_os_fs_windows_style:
@@ -233,7 +233,7 @@ class FSMock:
             return '\\'.join(folders[1:])
     
     def _os_walk_mock_(path:str, filetree:list=None, topdown:bool=True) -> list[tuple]:
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_walk(path)
         #log(f"os_walk_mock called with path: {path}")
         cur_node:list = None
@@ -274,7 +274,7 @@ class FSMock:
         return result
 
     def _os_exists(path:str) -> bool:
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_exists(path)
         if path in FSMock.os_path_exists_values:
             return FSMock.os_path_exists_values[path]
@@ -286,12 +286,12 @@ class FSMock:
         return FSMock.system_os_exists(path)
     
     def _os_islink(path:str) -> bool:
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_islink(path)
         return False
     
     def _os_getsize(path:str) -> int:
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_getsize(path)
         path = path.replace('\\', '/')
         if path in FSMock.file_properties:
@@ -299,22 +299,29 @@ class FSMock:
         return 0
     
     def _os_remove(path):
+        if FSMock._called_from_outside(path):
+            return FSMock.system_os_remove(path)
         FSMock.removed.add(path)
 
     def _shutil_rmtree(path, ignore_errors=False):
+        if FSMock._called_from_outside(path):
+            FSMock.system_shutil_rmtree(path)
         if path in FSMock.os_rmdir_failure_paths and not ignore_errors:
             FSMock._raise_permission_error('(FSMock) shutil.rmtreee simulated error', path)
         FSMock.removed_dirs.add(path)
     
-    def _os_mkdir(path, mode: int = 0o777):
-        if not isinstance(path, str):
-            FSMock.system_os_mkdir(path,mode)
+    def _os_mkdir(path, mode=0o777, *, dir_fd=None):
+        if FSMock._called_from_outside(path):
+            FSMock.system_os_mkdir(path, mode=mode, dir_fd=dir_fd)
         FSMock.created_dirs.add(path)
     
-    def _os_makedirs(path, exist_ok: bool = False):
-        return
+    def _os_makedirs(name, mode=0o777, exist_ok=False):
+        if FSMock._called_from_outside(name):
+            FSMock.system_os_makedirs(name,mode=mode,exist_ok=exist_ok)
     
     def _shutil_copy2(src, dest):
+        if FSMock._called_from_outside(src):
+            return FSMock.system_shutil_copy2(src, dest)
         if src in FSMock.os_copy_failure_paths:
             FSMock._raise_permission_error('(FSMock) shutil.copy2 simulated error', src)
         if dest in FSMock.os_copy_failure_paths:
@@ -324,18 +331,18 @@ class FSMock:
     def _shutil_move(src, dest):
         return
     
-    def _os_stat(path, *, dir_fd: int | None = None, follow_symlinks: bool = True) -> any:
-        if not isinstance(path,str):
-            return FSMock.system_os_stat(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
+    def _os_stat(path, *, dir_fd=None, follow_symlinks=True) -> any:
+        if FSMock._called_from_outside(path):
+            return FSMock.system_os_stat(**locals())
         res = type('TMP', (object,), {'st_size': 0})()
         return res
     
     def _os_chmod(path, mode: int, *, dir_fd: int | None = None, follow_symlinks: bool = True):
-        if not isinstance(path,str):
-            return FSMock.system_os_chmod(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
+        if FSMock._called_from_outside(path):
+            FSMock.system_os_chmod(path,dir_fd=dir_fd,follow_symlinks=follow_symlinks)
         
     def _os_scandir_mock(path:str):
-        if not isinstance(path, str):
+        if FSMock._called_from_outside(path):
             return FSMock.system_os_scandir(path)
         path = path.replace('\\', '/')
         if path.startswith('left'):
@@ -355,11 +362,33 @@ class FSMock:
         fileset = filetree.to_fileset(relpath)
         entries:list = []
         for file in fileset:
-            entries.append(FSMock._ScandirEntryMock_(file))
-        return entries
+            entries.append(file)
+        return FSMock._ScandirEntriesMock_(entries)
         
     def _raise_permission_error(text:str, path:str):
         err = PermissionError(text)
         err.strerror = text
         err.filename = path
         raise err
+
+    class _ScandirEntriesMock_:
+        def __init__(self, entries:list[str]):
+            self.entries:list = entries
+            self.i:int = 0
+        
+        def __iter__(self):
+            self.i = 0
+            return iter(self.entries[0])
+
+        def __next__(self):
+            self.i += 1
+            return iter(self.entries[self.i])
+        
+        def close(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass

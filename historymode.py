@@ -22,9 +22,7 @@ class HistoryMode:
                     os.remove(path)
                 # remove directories if they are empty
                 path = os.path.dirname(HistoryMode.get_history_filepath(basedir, file, 1))
-                while os.path.exists(path) and is_dir_empty(path):
-                    os.rmdir(path)
-                    path = os.path.dirname(path)
+                remove_empty_part_of_path(path)
                 return
 
             # Remove files in history that should not be kept
@@ -41,16 +39,28 @@ class HistoryMode:
             shutil.move(file, destpath)
 
 
-    def clean_history(basedir:str, maxnbfiles:int, maxsize:int):
+    def clean_history(basedir:str, maxnbfiles:int, maxsize:int) -> tuple[list[str], list[str], list[str]]:
+        errors:list = []
+        removedfiles:list = []
+        sizes:list = []
         historydir = os.path.join(basedir, HISTORY_DIR)
         if os.path.exists(historydir):
             for root, dirs, files in os.walk(historydir, topdown=False):
                 history_files_info = HistoryMode.get_files_info_in_history_dir(root)
                 for filepath, historyfilepaths, historyfilesizes in history_files_info:
                     nbtokeep = HistoryMode.get_nb_history_files_to_keep(-1, historyfilesizes, maxnbfiles, maxsize)
+                    if not os.path.exists(filepath):
+                        nbtokeep = 0
                     # Remove files in history that should not be kept
                     for i in range(nbtokeep, len(historyfilesizes)):
-                        os.remove(historyfilepaths[i])
+                        try:
+                            os.remove(historyfilepaths[i])
+                            remove_empty_part_of_path(os.path.dirname(historyfilepaths[i]))
+                            removedfiles.append(historyfilepaths[i])
+                            sizes.append(historyfilesizes[i])
+                        except OSError:
+                            errors.append('Error while removing file in history : '+historyfilepaths[i])
+        return removedfiles, sizes, errors
 
 
     def get_files_info_in_history_dir(history_dir:str) -> list[tuple[str, list[str], list[int]]]:
@@ -75,16 +85,17 @@ class HistoryMode:
     def get_nb_history_files_to_keep(filetosavesize:int, historyfilesizes:list[int], maxnbhistoryfiles:int, maxhistorysize:int) -> int:
         """ Returns the number of history files to keep when adding a new file in history, or -1 if the new file to save is too big to be kept in history
         param filetosavesize: size of the file to save in history (or -1 if no new file to save, for example when just cleaning history)"""
-        if maxhistorysize!=0 and (filetosavesize > maxhistorysize or maxnbhistoryfiles <= 0):
+        if filetosavesize != -1 and maxhistorysize!=0 and (filetosavesize > maxhistorysize or maxnbhistoryfiles <= 0):
             return -1
         nbhistoryfiles = len(historyfilesizes)
         i = 0
         historyfilesize = 0
         while True:
-            if i == nbhistoryfiles or i+1 >= maxnbhistoryfiles:
-                if filetosavesize == -1:
-                    return i+1
-                else:
+            if filetosavesize == -1:
+                if i == nbhistoryfiles or i >= maxnbhistoryfiles:
+                    return i
+            else:
+                if i == nbhistoryfiles or i+1 >= maxnbhistoryfiles:
                     return i
             historyfilesize += historyfilesizes[i]
             if  maxhistorysize!=0 and (filetosavesize + historyfilesize > maxhistorysize):
@@ -123,7 +134,8 @@ class HistoryMode:
         return os.path.normpath(history_name)
     
     def remove_historydir_in_path(path:str) -> str:
-        parts = path.split(os.path.sep)
+        sep = '\\' if '\\' in path else '/'
+        parts = path.split(sep)
         if HISTORY_DIR in parts:
             parts.remove(HISTORY_DIR)
-        return os.path.sep.join(parts)
+        return sep.join(parts)

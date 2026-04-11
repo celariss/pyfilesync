@@ -43,6 +43,12 @@ Use `restore` option with `compare` or `sync` command to reverse synchonization 
 The default behaviour is a "clean restore" : Be aware that left only files (i.e. files that were filtered during copy operation, and that are NOT present in right folder) will be removed.<br>
 **To preserve left only files, use the `--ignore-target-only` option**
 
+### show_history command
+The `show_history` command prints out all synced files that have some versions saved in history
+
+### clean_history command
+The `clean_history` command seeks for versions of files that should not be kept in history, and remove them.
+This is usefull after history mode parameters have been changed in config file (ex: `depth` parameter decreased), or to clean versions of files removed in right folder.
 
 # Config file format
 A config file is a JSON file containing folder pairs to synchronize.

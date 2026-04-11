@@ -33,6 +33,19 @@ class TestDatasaver:
             (100, [10, 20, 30], 5, 160, 3),
             (100, [10, 20, 30], 5, 1000, 3),
             (100, [10, 20, 30], 5, 0, 3),
+
+            (-1, [10, 20, 30], 0, 60, 0),
+            (-1, [10, 20, 30], 1, 60, 1),
+            (-1, [10, 20, 30], 2, 60, 2),
+            (-1, [10, 20, 30], 3, 60, 3),
+
+            (-1, [10, 20, 30], 0, 0, 0),
+            (-1, [10, 20, 30], 1, 0, 1),
+            (-1, [10, 20, 30], 1, 1, 0),
+            (-1, [10, 20, 30], 0, 10, 0),
+            (-1, [10, 20, 30], 1, 10, 1),
+            (-1, [10, 20, 30], 2, 10, 1),
+            (-1, [10, 20, 30], 2, 30, 2),
         ]
 
         for test_case in test_cases:
@@ -111,6 +124,7 @@ class TestDatasaver:
                 file, nb = file_data
                 basename, ext = os.path.splitext(file)
                 basename = basename.replace('/', os.sep)
+                files.add(file)
                 for i in range(nb):
                     history_basename = os.path.join(HISTORY_DIR, basename)
                     files.add((history_basename + HISTORY_FORMAT + ext).format(i+1).replace(os.sep, '/'))

@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "2.0.1"
+__version__     = "2.0.2"
 
 import argparse
 import sys, os
@@ -245,7 +245,7 @@ def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = 
 
     return res
 
-def show_saved_files(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
+def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
     res = FolderPairsSyncResults()
 
     if pairs2process is not None:
@@ -258,7 +258,6 @@ def show_saved_files(config:SyncConfig, pairs2process:list[str] = None) -> Folde
     
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
-            left = replace_env_variables(pair.left)
             right = replace_env_variables(pair.right)
             name = pair.name
             log('')
@@ -269,10 +268,52 @@ def show_saved_files(config:SyncConfig, pairs2process:list[str] = None) -> Folde
                 if files_info:
                     for file_info in files_info:
                         file, historyfilepaths, historyfilesizes = file_info
+                        file_exists = os.path.exists(file)
                         totalsize = sum(historyfilesizes)
-                        log("  | ."+os.path.sep+file+" : %d version(s), %s (total size)" % (len(historyfilepaths), format_size(totalsize)))
+                        removed_str = '' if file_exists else ' (REMOVED)'
+                        log("  | ."+os.path.sep+file+"%s : %d version(s), %s (total size)" % (removed_str, len(historyfilepaths), format_size(totalsize)))
                 else:
                     log("  (No saved files)")
+            else:
+                log("  (No saved files)")
+    return res
+
+def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:bool = False) -> FolderPairsSyncResults:
+    res = FolderPairsSyncResults()
+
+    if pairs2process is not None:
+        for pair_name in pairs2process:
+            if not any(pair.name == pair_name for pair in config.pairs):
+                text = "No pair with name '%s' found in config file" % pair_name
+                log_error(text)
+                res.errors.add((pair_name, text))
+                return res
+    
+    for pair in config.pairs:
+        if (not pairs2process) or (pair.name in pairs2process):
+            right = replace_env_variables(pair.right)
+            name = pair.name
+            log('')
+            log('Pair "'+name+'" : ')
+            history_dir = os.path.join(right, HISTORY_DIR)
+            if os.path.exists(history_dir):
+                removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size)
+                
+                if removed_files:
+                    if verbose:
+                        log("  Removed files :")
+                        for f in removed_files:
+                            log("    | ."+os.path.sep+f)
+                    totalsize = sum(sizes)
+                    log('  %d files removed' % len(removed_files))
+                    log("  %s of total size removed" % format_size(totalsize))
+                else:
+                    log("  No files removed")
+
+                if errors:
+                    log("%d errors encountered during history cleaning :" % len(errors))
+                    for error in errors:
+                        log("  . "+str(error))
             else:
                 log("  (No saved files)")
     return res
@@ -286,11 +327,12 @@ def main(argv):
 config string : must be surrounded by quotes ( '...' ) and
                 double quotes must be escaped (\" replaced by \\\")
                 example: '{\\"pairs\\" : [{...}]}' ''', nargs='?')
-    argParser.add_argument("action", help='''action, among [list, sync, compare, show_saved_files]
+    argParser.add_argument("action", help='''action, among [list, sync, compare, show_history]
  > list: lists pairs in config file
  > sync: actually synchronizes folders
  > compare: (default) only shows differences between folders
- > show_saved_files: display saved versions of all files ''', nargs='?')
+ > show_history: display saved versions of all files
+ > clean_history: remove unwanted saved versions of files''', nargs='?')
     argParser.add_argument("-p", "--pair", help="select one (or more) specific pair(s) by name", nargs='+', dest='pairs', default=None)
     argParser.add_argument("-c", "--create", help="create root target folder of each pair if needed", action='store_true')
     argParser.add_argument("-r", "--restore", help="change sync direction to restore files (right -> left)", action='store_true')
@@ -311,7 +353,7 @@ config string : must be surrounded by quotes ( '...' ) and
 
     if (args.action is None):
         args.action = 'compare'
-    elif (args.action not in ['list', 'sync', 'compare', 'show_saved_files']):
+    elif (args.action not in ['list', 'sync', 'compare', 'show_history', 'clean_history']):
         log_error('invalid action given : '+args.action)
         return 2
 
@@ -335,8 +377,12 @@ config string : must be surrounded by quotes ( '...' ) and
             log('Pair "'+name+'" : ')
             log('  | Left : '+left)
             log('  | Right: '+right)
-    elif args.action == 'show_saved_files':
-        res = show_saved_files(config)
+    elif args.action == 'show_history':
+        res = show_history(config, args.pairs)
+        if res.errors:
+            return 4
+    elif args.action == 'clean_history':
+        res = clean_history(config, args.pairs, args.verbose)
         if res.errors:
             return 4
     else:
