@@ -34,6 +34,8 @@ def is_dir_empty(path: str) -> bool:
         return not any(d)
     
 def remove_empty_part_of_path(dirpath):
+    """remove from disk parts of the given path that are empty
+       (ex: 'C:/temp/emptydir/emptydir2' will be reduced to 'C:/temp' if emptydir and emptydir2 are empty)"""
     while os.path.exists(dirpath) and is_dir_empty(dirpath):
         try:
             os.rmdir(dirpath)
@@ -43,7 +45,22 @@ def remove_empty_part_of_path(dirpath):
 
 tokenizer = re.compile(r'^[ \t]*(\d+)[ \t]*([a-zA-Z]*)?[ \t]*$')
 
+def format_size(size:int, units: list = ['byte(s)', 'Kb', 'Mb', 'Gb'], coeff: int = 1024) -> str:
+    """format a size to a human readable string with given unit
+    :param size: size to format
+    :param units: list of units to use, in increasing order, defaults to ['byte(s)', 'Kb', 'Mb', 'Gb']
+    :param coeff: coefficient to use between units, defaults to 1024"""
+    for i in range(len(units)):
+        if size<10*(coeff**(i+1)):
+            return '%d %s' % (size/(coeff**i), units[i])
+    
+
 def value_with_unit_to_int(value: str | int, default: int, units: list = ['b|bytes|byte', 'k|kb', 'mb|m', 'g|gb'], coeff: int = 1024) -> int:
+    """convert a value with unit to an int, or return default if the value is not valid
+    :param value: value to convert, can be an int or a string with a number and an optional unit (ex: '100', '100B', '100 k', '1 mb')
+    :param default: value to return if the value is not valid
+    :param units: list of units to use, in increasing order, with possible aliases separated by '|', defaults to ['b|bytes|byte', 'k|kb', 'mb|m', 'g|gb']
+    :param coeff: coefficient to use between units, defaults to 1024"""
     if isinstance(value, int):
         return value
     if isinstance(value, str):

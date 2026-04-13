@@ -2,7 +2,7 @@
 __author__      = "Jérôme Cuq"
 __copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "2.0.2"
+__version__     = "2.1.0"
 
 import argparse
 import sys, os
@@ -53,22 +53,13 @@ class FolderPairsSyncResults:
 def set_root_dir(data:set, root:str) -> set:
     return set({os.path.join(root,e) for e in data})
 
-def format_size(size:int) -> str:
-    if size<2:
-        return '%d byte' % size
-    elif size<10240:
-        return '%d bytes' % size
-    elif size<1024*1024*10:
-        return '%d Kbytes' % (size/1024)
-    elif size<1024*1024*1024*10:
-        return '%d Mbytes' % (size/1024/1024)
-    return '%d Gbytes' % (size/1024/1024/1024)
 
 def log_size_needed(size_needed, prefix:str=''):
     if size_needed<0:
         log(prefix+'A total of %s will be freed after sync' % format_size(-size_needed))
     elif size_needed>0:
         log(prefix+'A total of %s of free space are needed to sync' % format_size(size_needed))
+
 
 def log_compare_result(cmpdata:CmpData, verbose):
     if verbose:
@@ -110,6 +101,22 @@ def log_compare_result(cmpdata:CmpData, verbose):
     log_size_needed(cmpdata.size_needed, '    ')
     if not blog:
         log('    -- No files found in source ! --')
+
+
+def check_pairs2process(config:SyncConfig, pairs2process:list[str], res:FolderPairsSyncResults) -> bool:
+    """check that pairs2process are valid, and log errors if not
+    :param config: config data as a dict
+    :param pairs2process: list of pair sections , representing folders pairs to synchronize
+    :param res: results object to store errors
+    :return: True if all pairs are valid, False otherwise"""
+    if pairs2process is not None:
+        for pair_name in pairs2process:
+            if not any(pair.name == pair_name for pair in config.pairs):
+                text = "No pair with name '%s' found in config file" % pair_name
+                log_error(text)
+                res.errors.add((pair_name, text))
+                return False
+    return True
 
 
 def log_sync_result(syncdata:SyncData, verbose):
@@ -180,22 +187,12 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     
     return (cmpdata, syncdata)
 
-def check_pairs2process(config:SyncConfig, pairs2process:list[str], res:FolderPairsSyncResults) -> bool:
-    if pairs2process is not None:
-        for pair_name in pairs2process:
-            if not any(pair.name == pair_name for pair in config.pairs):
-                text = "No pair with name '%s' found in config file" % pair_name
-                log_error(text)
-                res.errors.add((pair_name, text))
-                return False
-    return True
-
 
 def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = None, create_root:bool = False,
                        restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> FolderPairsSyncResults:
     """synchronize folders pairs in mirror mode (left to right or right to left, source files remain unchanged)
 
-    :param config: config data as a dict, loaded from config file
+    :param config: config data as a dict
     :param action: action to perform, among 'sync' and 'compare'
     :param pairs2process: list of pair sections , representing folders pairs to synchronize
     :param create_root: indicates whether the function must create right folders if they do not exist, defaults to False
@@ -250,7 +247,11 @@ def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = 
 
     return res
 
+
 def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
+    """show saved versions of files for folders pairs in config file
+    :param config: config data as a dict
+    :param pairs2process: list of pair sections , representing folders pairs to show history for"""
     res = FolderPairsSyncResults()
 
     if not check_pairs2process(config, pairs2process, res):
@@ -278,7 +279,12 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
                 log("  (No saved files)")
     return res
 
+
 def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:bool = False) -> FolderPairsSyncResults:
+    """remove unwanted saved versions of files for folders pairs in config file
+    :param config: config data as a dict
+    :param pairs2process: list of pair sections , representing folders pairs to show history for
+    :param verbose: indicates whether the function must be verbose, defaults to False"""
     res = FolderPairsSyncResults()
 
     if not check_pairs2process(config, pairs2process, res):

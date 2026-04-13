@@ -74,12 +74,15 @@ class SyncData(object):
 
 class DirSyncer:
     def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False, verbose:bool=False) -> CmpData:
-        """compare two directories and return a CmpData object containing the results
+        """compares two directories and returns a CmpData object containing the results
         
         :param leftdir: path to the left directory
         :param rightdir: path to the right directory
         :param include: include filters as a list of regex
-        :param exclude: exclude filters as a list of regex"""
+        :param exclude: exclude filters as a list of regex
+        :param compare_file_content: indicates whether to compare files content to detect different files, instead of only comparing files size and modification time, defaults to False
+        :param ignore_right_only: indicates whether to ignore files and directories only present in right directory, defaults to False
+        :param verbose: indicates whether to display verbose output, defaults to False"""
 
         # left_files will receive all (filtered) files from left folder
         left_files:set = set()
@@ -208,7 +211,14 @@ class DirSyncer:
     
     def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData,
                      history_mode_depth:int=0, history_mode_file_max_saved_size:int=0, verbose:bool=False) -> SyncData:
-        """synchronize two directories according to the given CmpData results, and return sync results as SyncData"""
+        """synchronizes two directories according to the given CmpData results, and returns sync results as SyncData
+        
+         :param leftdir: path to the left directory
+         :param rightdir: path to the right directory
+         :param cmp_data: CmpData object containing the results of directories comparison, to use to synchronize directories
+         :param history_mode_depth: history mode depth to use when synchronizing files, defaults to 0 (no history)
+         :param history_mode_file_max_saved_size: history mode file max saved size to use when synchronizing files, defaults to 0 (no limit on file size to save in history)
+         :param verbose: indicates whether to display verbose output, defaults to False"""
 
         syncdata:SyncData = SyncData()
 
@@ -304,7 +314,7 @@ class DirSyncer:
         return res
 
     def __compile_regex__(pattern:str, example_path:str) -> re.Pattern:
-        """compile a regex pattern and return the compiled pattern, or None if the pattern is invalid
+        """compiles a regex pattern and return the compiled pattern, or None if the pattern is invalid
         The compiled regex has the same case sensibility than the target filesystem 
 
         :param pattern: regex pattern to compile
@@ -331,7 +341,7 @@ class DirSyncer:
 
     
     def __file_match_regex__(path:str, filename:str, regex:re.Pattern, isdir:bool) -> bool:
-        """return True if the given path match the given regex, taking into account whether it is a directory or not
+        """returns True if the given path match the given regex, taking into account whether it is a directory or not
         (if isdir is True, the regex must have a trailing slash)
 
         :param path: path to match (with filename)

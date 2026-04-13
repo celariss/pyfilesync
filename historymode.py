@@ -9,6 +9,12 @@ HISTORY_FILE_PATTERN = '^(..*)_#([0-9]{2})#(.*)?$'
 
 class HistoryMode:
     def save_file(basedir:str, file:str, maxnbfiles:int, maxsize:int):
+        """save a file in history (by moving the file), and remove old files in history if needed to keep only maxnbfiles and maxsize of files in history.
+        param basedir: base directory of the synchronization data (not the history basedir)
+        param file: file path, in the synchronization directory, to move to history (actual file, not in history directory)
+        param maxnbfiles: maximum number of files to keep in history, if 0 or less, history mode is disabled, 
+                          no file will be saved in history and all files in history will be removed
+        param maxsize: maximum total size of files to keep in history, if 0, there is no limit on the total size of files to keep in history"""
         if maxnbfiles > 0:
             historyfilesizes:list
             historyfilepaths:list
@@ -40,6 +46,15 @@ class HistoryMode:
 
 
     def clean_history(basedir:str, maxnbfiles:int, maxsize:int) -> tuple[list[str], list[str], list[str]]:
+        """remove unwanted saved versions of files in history, to keep only maxnbfiles and maxsize of files in history.
+        A unwanted file can be either a file that should not be kept in history because of maxnbfiles and maxsize limits, 
+        or a file that should be kept in history but whose actual file does not exist anymore 
+        (for example because it has been removed outside of the synchronization process).
+        param basedir: base directory of the synchronization data (not the history basedir)
+        param maxnbfiles: maximum number of files to keep in history, if 0 or less, history mode is disabled, 
+                          no file will be saved in history and all files in history will be removed
+        param maxsize: maximum total size of files to keep in history, if 0, there is no limit on the total size of files to keep in history
+        return: a tuple containing 3 lists : (list of removed file paths, list of removed file sizes, list of errors that occured while removing files)"""
         errors:list = []
         removedfiles:list = []
         sizes:list = []
@@ -64,6 +79,8 @@ class HistoryMode:
 
 
     def get_files_info_in_history_dir(history_dir:str) -> list[tuple[str, list[str], list[int]]]:
+        """ Returns a list of tuples containing file path, history file paths and history file sizes for each file that has at least one version in history in the given history directory
+        param history_dir: path to the history directory to get files info from, this is the directory that contains history files, not the base directory of the synchronization data"""
         files_info:list[tuple[str, list[str], list[int]]] = []
         basedir = HistoryMode.remove_historydir_in_path(history_dir)
         if os.path.exists(history_dir):

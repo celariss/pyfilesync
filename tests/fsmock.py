@@ -16,6 +16,8 @@ class FSMock:
     """This class is used to mock some system apis from "os" module"""
 
     def __init__(self):
+        """constructor, installs os mock when creating an instance of FSMock
+        to be used with "with" statement, to automatically uninstall os mock at the end of the "with" block, or by calling close() method"""
         pass
     def close(self):
         FSMock.uninstall_os_mock()
@@ -132,6 +134,7 @@ class FSMock:
         FSMock.file_properties = file_properties if file_properties else {}
 
     def set_os_fs_style(is_windows_style:bool):
+        """sets the os filesystem style to windows or unix, this will change the path separator and case sensitivity use in mocked os functions"""
         FSMock.is_os_fs_windows_style = is_windows_style
         FSMock.os_path_sep = '\\' if is_windows_style else '/'
 

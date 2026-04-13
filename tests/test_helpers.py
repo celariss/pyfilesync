@@ -30,3 +30,19 @@ class TestHelpers:
         for test_case in test_cases:
             value, expected = test_case
             assert value_with_unit_to_int(value, -1) == expected
+
+    def test_format_size(self):
+        test_cases = [
+            (0, '0 byte(s)'),
+            (1, '1 byte(s)'),
+            (100, '100 byte(s)'),
+            (1023, '1023 byte(s)'),
+            (2000, '2000 byte(s)'),
+            (1024*10, '10 Kb'),
+            (1024*1024*10, '10 Mb'),
+            (1024*1024*1024*10, '10 Gb'),
+        ]
+
+        for test_case in test_cases:
+            size, expected = test_case
+            assert format_size(size) == expected
