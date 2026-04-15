@@ -263,20 +263,24 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
             name = pair.name
             log('')
             log('Pair "'+name+'" : ')
-            history_dir = os.path.join(right, HISTORY_DIR)
-            if os.path.exists(history_dir):
-                files_info = HistoryMode.get_files_info_in_history_dir(history_dir)
-                if files_info:
-                    for file_info in files_info:
-                        file, historyfilepaths, historyfilesizes = file_info
-                        file_exists = os.path.exists(file)
-                        totalsize = sum(historyfilesizes)
-                        removed_str = '' if file_exists else ' (REMOVED)'
-                        log("  | ."+os.path.sep+file+"%s : %d version(s), %s (total size)" % (removed_str, len(historyfilepaths), format_size(totalsize)))
+            if not os.path.exists(right):
+                log_error("Right folder <"+right+"> does not exist")
+                res.errors.add((right, "Right folder  does not exist"))
+            else:
+                history_dir = os.path.join(right, HISTORY_DIR)
+                if os.path.exists(history_dir):
+                    files_info = HistoryMode.get_files_info_in_history_dir(history_dir)
+                    if files_info:
+                        for file_info in files_info:
+                            file, historyfilepaths, historyfilesizes = file_info
+                            file_exists = os.path.exists(file)
+                            totalsize = sum(historyfilesizes)
+                            removed_str = '' if file_exists else ' (REMOVED)'
+                            log("  | ."+os.path.sep+file+"%s : %d version(s), %s (total size)" % (removed_str, len(historyfilepaths), format_size(totalsize)))
+                    else:
+                        log("  (No saved files)")
                 else:
                     log("  (No saved files)")
-            else:
-                log("  (No saved files)")
     return res
 
 
@@ -296,27 +300,31 @@ def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:boo
             name = pair.name
             log('')
             log('Pair "'+name+'" : ')
-            history_dir = os.path.join(right, HISTORY_DIR)
-            if os.path.exists(history_dir):
-                removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size)
-                
-                if removed_files:
-                    if verbose:
-                        log("  Removed files :")
-                        for f in removed_files:
-                            log("    | ."+os.path.sep+f)
-                    totalsize = sum(sizes)
-                    log('  %d files removed' % len(removed_files))
-                    log("  %s of total size removed" % format_size(totalsize))
-                else:
-                    log("  No files removed")
-
-                if errors:
-                    log("%d errors encountered during history cleaning :" % len(errors))
-                    for error in errors:
-                        log("  . "+str(error))
+            if not os.path.exists(right):
+                log_error("Right folder <"+right+"> does not exist")
+                res.errors.add((right, "Right folder  does not exist"))
             else:
-                log("  (No saved files)")
+                history_dir = os.path.join(right, HISTORY_DIR)
+                if os.path.exists(history_dir):
+                    removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size)
+                    
+                    if removed_files:
+                        if verbose:
+                            log("  Removed files :")
+                            for f in removed_files:
+                                log("    | ."+os.path.sep+f)
+                        totalsize = sum(sizes)
+                        log('  %d files removed' % len(removed_files))
+                        log("  %s of total size removed" % format_size(totalsize))
+                    else:
+                        log("  No files removed")
+
+                    if errors:
+                        log("%d errors encountered during history cleaning :" % len(errors))
+                        for error in errors:
+                            log("  . "+str(error))
+                else:
+                    log("  (No saved files)")
     return res
         
 

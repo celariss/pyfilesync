@@ -222,7 +222,16 @@ class DirSyncer:
 
         syncdata:SyncData = SyncData()
 
-        # First remove files/directories only in right directory,
+        # First, before removing right only files, we save them in history if history mode is enabled.
+        if history_mode_depth > 0:
+            for rightfile in cmp_data.right_only_files|cmp_data.right_only_files_in_dirs:
+                rightpath = os.path.join(rightdir, rightfile)
+                err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
+                if err:
+                    log_error('  '+err, 'Warning: ')
+                    syncdata.warnings.add((rightpath, err))
+
+        # Then remove files/directories only in right directory,
         # to free space before copying files from left to right directory,
         # in case there is not enough free space to copy left files without deleting right files first
         if cmp_data.right_only_files or cmp_data.right_only_dirs:
@@ -256,9 +265,12 @@ class DirSyncer:
                 rightpath = os.path.join(rightdir, f)
                 try:
                     try:
+                        err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
+                        if err:
+                            log_error('  '+err, 'Warning: ')
+                            syncdata.warnings.add((rightpath, err))
                         if verbose:
                             log('   | Updating %s from %s' % (rightpath, leftpath))
-                        HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):
@@ -389,10 +401,11 @@ class DirSyncer:
             return int(math.trunc(left_ts.st_mtime*100)/100 - math.trunc(right_ts.st_mtime*100)/100) != 0
 
     def __rm_file_or_dir__(path:str):
-        if os.path.isfile(path) or os.path.islink(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
+        if os.path.exists(path):
+            if os.path.isfile(path) or os.path.islink(path):
+                os.remove(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
 
     def __copy_dir_or_file__(src:str, dest:str):
         if os.path.isdir(src):

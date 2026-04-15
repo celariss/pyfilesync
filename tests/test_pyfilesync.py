@@ -20,8 +20,10 @@ class TestPyFileSync:
 
         assert main(['-V']) == 0
         assert main(['tests/config1.json', 'list']) == 0
-        assert main(['tests/config1.json', 'show_history']) == 0
-        assert main(['tests/config1.json', 'clean_history']) == 0
+        # right folders do not exist
+        assert main(['tests/config1.json', 'show_history']) == 4
+        # right folders do not exist
+        assert main(['tests/config1.json', 'clean_history']) == 4
         assert main(['{"pairs":[{"name":"pair_1","left":"left1","right":"right1","include":["*.mp4","*.txt"]},\
                                 {"name":"pair_2","left":"left2","right":"right2"}]}', 'list']) == 0
         
