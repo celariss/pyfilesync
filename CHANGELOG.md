@@ -1,9 +1,10 @@
-## 2.1.0 (2026-04-13) :
+## 2.1.0 (2026-04-15) :
 - added 2 commands to manage history mode :
 	- show_history
 	- clean_history
 - added tests for history mode
 - improved filesystem mocking system for testing purpose (FSMock)
+- files to be removed on right folder are first saved in history
 
 ## v2.0.0 (2026-04-08) :
 - added history mode :
