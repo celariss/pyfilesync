@@ -1,3 +1,6 @@
+__author__      = "Jérôme Cuq"
+__license__     = "BSD-3-Clause"
+
 from pyfilesync import *
 from tests.common import *
 from tests.fsmock import FSMock
@@ -7,25 +10,25 @@ from tests.test_historymode import create_history_files_set
 
 class TestPyFileSync:
     def test_main(self):
-        assert main([]) == 1
+        assert main([]) == 2
         # bad config file
-        assert main(['tests/config2.json', '-v']) == 3
-        assert main(['tests/config1.json', 'bad_action', '-v']) == 2
+        assert main(['compare', 'tests/config2.json', '-v']) == 3
+        assert main(['bad_command', 'tests/config1.json', '-v']) == 2
         # bad pair name
-        assert main(['tests/config1.json', '-p', 'bad_pair', '-v']) == 4
+        assert main(['compare', 'tests/config1.json', '-p', 'bad_pair', '-v']) == 4
         # left folders do not exist
-        assert main(['tests/config1.json', '-v']) == 4
+        assert main(['compare', 'tests/config1.json', '-v']) == 4
         # bad 'file_max_saved_size' value in config file
-        assert main(['{"global":{"history_mode": {"depth": 0, "file_max_saved_size":"100fkb"}},"pairs":[]}']) == 3
+        assert main(['compare', '{"global":{"history_mode": {"depth": 0, "file_max_saved_size":"100fkb"}},"pairs":[]}']) == 3
 
         assert main(['-V']) == 0
-        assert main(['tests/config1.json', 'list']) == 0
+        assert main(['list', 'tests/config1.json']) == 0
         # right folders do not exist
-        assert main(['tests/config1.json', 'show_history']) == 4
+        assert main(['show_history', 'tests/config1.json']) == 4
         # right folders do not exist
-        assert main(['tests/config1.json', 'clean_history']) == 4
-        assert main(['{"pairs":[{"name":"pair_1","left":"left1","right":"right1","include":["*.mp4","*.txt"]},\
-                                {"name":"pair_2","left":"left2","right":"right2"}]}', 'list']) == 0
+        assert main(['clean_history', 'tests/config1.json']) == 4
+        assert main(['list', '{"pairs":[{"name":"pair_1","left":"left1","right":"right1","include":["*.mp4","*.txt"]},\
+                                {"name":"pair_2","left":"left2","right":"right2"}]}']) == 0
         
         
         test_cases = [
@@ -39,8 +42,8 @@ class TestPyFileSync:
                     FSMock.clean_sync_data()
                     FSMock.set_os_fs_style(fs_style)
                     FSMock.set_fsmock_data(FSTree(), FSTree(files | history), None)
-                    assert main(['{"pairs":[{"name":"pair_1","left":"left","right":"right","history_mode": {"depth": 0},"include":["*.mp4","*.txt"]}]}', 'show_history', '-p', 'pair_1']) == 0
-                    assert main(['{"pairs":[{"name":"pair_1","left":"left","right":"right","history_mode": {"depth": 0},"include":["*.mp4","*.txt"]}]}', 'clean_history', '-p', 'pair_1', '-v']) == 0
+                    assert main(['show_history','{"pairs":[{"name":"pair_1","left":"left","right":"right","history_mode": {"depth": 0},"include":["*.mp4","*.txt"]}]}', '-p', 'pair_1']) == 0
+                    assert main(['clean_history', '{"pairs":[{"name":"pair_1","left":"left","right":"right","history_mode": {"depth": 0},"include":["*.mp4","*.txt"]}]}', '-p', 'pair_1', '-v']) == 0
 
 
     def test_syncfolderpairs1(self):
@@ -79,7 +82,7 @@ class TestPyFileSync:
             nb += 1
             FSMock.clean_sync_data()
             FSMock.os_path_exists_values['tests/config1.json'] = True
-            assert main(['tests/config1.json', 'sync']) == 0
+            assert main(['sync', 'tests/config1.json']) == 0
             assert FSMock.copied == set({('left2/file3', 'right2/file3')})
             assert FSMock.removed == set()
             assert FSMock.removed_dirs == set({'right1/dir1'})

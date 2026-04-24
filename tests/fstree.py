@@ -1,7 +1,5 @@
 from __future__ import annotations # needed for python3 older than 3.14
-
 __author__      = "Jérôme Cuq"
-__copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 __author__      = "Jérôme Cuq"
-__copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "2.1.0"
+__version__     = "2.2.0"
 
 import argparse
 import sys, os
@@ -248,7 +247,7 @@ def sync_folders_pairs(config:SyncConfig, action:str, pairs2process:list[str] = 
     return res
 
 
-def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPairsSyncResults:
+def show_history(config:SyncConfig, pairs2process:list[str] = None, removed_only:bool = False) -> FolderPairsSyncResults:
     """show saved versions of files for folders pairs in config file
     :param config: config data as a dict
     :param pairs2process: list of pair sections , representing folders pairs to show history for"""
@@ -262,7 +261,7 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
             right = replace_env_variables(pair.right)
             name = pair.name
             log('')
-            log('Pair "'+name+'" : ')
+            log('Pair "%s" (base folder "%s") : ' % (name, right))
             if not os.path.exists(right):
                 log_error("Right folder <"+right+"> does not exist")
                 res.errors.add((right, "Right folder  does not exist"))
@@ -274,9 +273,10 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
                         for file_info in files_info:
                             file, historyfilepaths, historyfilesizes = file_info
                             file_exists = os.path.exists(file)
-                            totalsize = sum(historyfilesizes)
-                            removed_str = '' if file_exists else ' (REMOVED)'
-                            log("  | ."+os.path.sep+file+"%s : %d version(s), %s (total size)" % (removed_str, len(historyfilepaths), format_size(totalsize)))
+                            if (not file_exists) or (not removed_only):
+                                totalsize = sum(historyfilesizes)
+                                removed_str = '' if removed_only or file_exists else ' (REMOVED)'
+                                log("  | ."+os.path.sep+os.path.relpath(file,right)+"%s : %d version(s), %s (total size)" % (removed_str, len(historyfilepaths), format_size(totalsize)))
                     else:
                         log("  (No saved files)")
                 else:
@@ -284,7 +284,7 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None) -> FolderPai
     return res
 
 
-def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:bool = False) -> FolderPairsSyncResults:
+def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:bool = False, removed_only:bool = False) -> FolderPairsSyncResults:
     """remove unwanted saved versions of files for folders pairs in config file
     :param config: config data as a dict
     :param pairs2process: list of pair sections , representing folders pairs to show history for
@@ -306,13 +306,13 @@ def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:boo
             else:
                 history_dir = os.path.join(right, HISTORY_DIR)
                 if os.path.exists(history_dir):
-                    removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size)
+                    removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size, removed_only)
                     
                     if removed_files:
                         if verbose:
-                            log("  Removed files :")
+                            log('  Removed files in "%s" :' % right)
                             for f in removed_files:
-                                log("    | ."+os.path.sep+f)
+                                log("    | ."+os.path.sep+os.path.relpath(f,right))
                         totalsize = sum(sizes)
                         log('  %d files removed' % len(removed_files))
                         log("  %s of total size removed" % format_size(totalsize))
@@ -330,44 +330,77 @@ def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:boo
 
 def main(argv):
     argParser = argparse.ArgumentParser(
-        description="This script synchronize folders pairs from a config file, in mirror mode (left to right only, left files remain unchanged). It can also be used to show differences between folders pairs, without synchronizing them.",
-                                        formatter_class=argparse.RawTextHelpFormatter)
-    argParser.add_argument("config", help='''config string or path to config file.
+        description='''This script synchronize folders pairs from a config file, in mirror mode :
+  > left to right, left files remain unchanged
+  > right to left (restore mode), right files remain unchanged''',
+        formatter_class=argparse.RawTextHelpFormatter,
+        exit_on_error=False
+    )
+
+    # Global arguments
+    argParser.add_argument("-V", "--version", help="show version and exit", action='store_true')
+
+    # parent parsers to allow common options between some commands
+    parentparser_cmpsync = argparse.ArgumentParser(add_help=False)
+    parentparser_showclean = argparse.ArgumentParser(add_help=False)
+    parentparser_cmp_sync_clean = argparse.ArgumentParser(add_help=False)
+    parentparser_allbutversion = argparse.ArgumentParser(add_help=False)
+
+    # add options common to compare, sync and clean_history commands 
+    parentparser_cmp_sync_clean.add_argument("-v", "--verbose", help="verbose mode", action='store_true')
+
+    # add options common to all commands but 'version'
+    parentparser_allbutversion.add_argument("config", help='''may be a config string or a path to config file.
 config string : must be surrounded by quotes ( '...' ) and
                 double quotes must be escaped (\" replaced by \\\")
                 example: '{\\"pairs\\" : [{...}]}' ''', nargs='?')
-    argParser.add_argument("action", help='''action, among [list, sync, compare, show_history]
- > list: lists pairs in config file
- > sync: actually synchronizes folders
- > compare: (default) only shows differences between folders
- > show_history: display saved versions of all files
- > clean_history: remove unwanted saved versions of files''', nargs='?')
-    argParser.add_argument("-p", "--pair", help="select one (or more) specific pair(s) by name", nargs='+', dest='pairs', default=None)
-    argParser.add_argument("-c", "--create", help="create root target folder of each pair if needed", action='store_true')
-    argParser.add_argument("-r", "--restore", help="change sync direction to restore files (right -> left)", action='store_true')
-    argParser.add_argument("-i", "--ignore-target-only", help="Ignore (preserve) files found only in target folder", action='store_true')
-    argParser.add_argument("-v", "--verbose", help="verbose mode", action='store_true')
-    argParser.add_argument("-V", "--version", help="show version and exit", action='store_true')
-    args = argParser.parse_args(argv)
+    parentparser_allbutversion.add_argument("-p", "--pair", help="select one (or more) specific pair(s) by name", nargs='+', dest='pairs', metavar='pair_name', default=None)
+
+    # add options common to compare and sync commands
+    parentparser_cmpsync.add_argument("-r", "--restore", help="change sync direction (used to restore files) (right -> left)", action='store_true')
+    parentparser_cmpsync.add_argument("-i", "--ignore-target-only", help="ignore (preserve) files found only in target folder", action='store_true')
+
+    # add options common to show_history and clean_history commands
+    parentparser_showclean.add_argument("-o", "--removed-only", help="show/clean only history of removed files", action='store_true')
+
+    # Subparsers for each command
+    subparsers = argParser.add_subparsers(dest='command', required=False)
+    parser_list  = subparsers.add_parser('list', help='list pairs in config file and exit',
+                                         parents=[parentparser_allbutversion],
+                                         formatter_class=argparse.RawTextHelpFormatter)
+    parser_cmp   = subparsers.add_parser('compare', help='only shows differences between folders, without synchronizing them',
+                                         parents=[parentparser_cmpsync,parentparser_cmp_sync_clean,parentparser_allbutversion],
+                                         formatter_class=argparse.RawTextHelpFormatter)
+    parser_sync  = subparsers.add_parser('sync', help='actually synchronizes folders',
+                                         parents=[parentparser_cmpsync,parentparser_cmp_sync_clean,parentparser_allbutversion],
+                                         formatter_class=argparse.RawTextHelpFormatter)
+    parser_show  = subparsers.add_parser('show_history', help='display saved versions of all files',
+                                         parents=[parentparser_showclean,parentparser_allbutversion],
+                                         formatter_class=argparse.RawTextHelpFormatter)
+    parser_clean = subparsers.add_parser('clean_history', help='remove unwanted saved versions of files',
+                                         parents=[parentparser_showclean,parentparser_cmp_sync_clean,parentparser_allbutversion],
+                                         formatter_class=argparse.RawTextHelpFormatter)
     
-    version = os.path.basename(__file__)+" "+__version__
+    # add options for sync command only
+    parser_sync.add_argument("-c", "--create", help="create root target folder of each pair if needed", action='store_true')
+
+    try:
+        args = argParser.parse_args(argv)
+    except argparse.ArgumentError as e:
+        log_error(str(e))
+        return 2
+
     if args.version:
+        version = os.path.basename(__file__)+" "+__version__
         log(version)
         return 0
-        
-    if not args.config:
-        log_error("the following argument is required: config")
-        log("use -h flag to see full help")
-        return 1
 
-    if (args.action is None):
-        args.action = 'compare'
-    elif (args.action not in ['list', 'sync', 'compare', 'show_history', 'clean_history']):
-        log_error('invalid action given : '+args.action)
+    if (args.command is None):
+        log_error('missing command')
         return 2
 
     config:SyncConfig = SyncConfig()
-    a:str
+
     args.config = args.config.strip('\'"')
     if args.config.startswith('{') and args.config.endswith('}'):
         error = config.load_json_string(args.config)
@@ -377,7 +410,7 @@ config string : must be surrounded by quotes ( '...' ) and
         log_error(error+" : "+args.config)
         return 3
        
-    if args.action == 'list':
+    if args.command == 'list':
         for pair in config.pairs:
             left = replace_env_variables(pair.left)
             right = replace_env_variables(pair.right)
@@ -386,16 +419,19 @@ config string : must be surrounded by quotes ( '...' ) and
             log('Pair "'+name+'" : ')
             log('  | Left : '+left)
             log('  | Right: '+right)
-    elif args.action == 'show_history':
-        res = show_history(config, args.pairs)
+    elif args.command == 'show_history':
+        res = show_history(config, args.pairs, args.removed_only)
         if res.errors:
             return 4
-    elif args.action == 'clean_history':
-        res = clean_history(config, args.pairs, args.verbose)
+    elif args.command == 'clean_history':
+        res = clean_history(config, args.pairs, args.verbose, args.removed_only)
         if res.errors:
             return 4
     else:
-        res = sync_folders_pairs(config, args.action, args.pairs, args.create, args.restore, args.ignore_target_only, args.verbose)
+        create = False
+        if args.command == 'sync':
+            create = args.create
+        res = sync_folders_pairs(config, args.command, args.pairs, create, args.restore, args.ignore_target_only, args.verbose)
         if res.errors:
             return 4
     

@@ -1,13 +1,11 @@
-from __future__ import annotations
-import fnmatch
-
-from historymode import HISTORY_DIR, HistoryMode # needed for python3 older than 3.14
+from __future__ import annotations # needed for python3 older than 3.14
 __author__      = "Jérôme Cuq"
-__copyright__   = "Copyright 2026, Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
+import fnmatch
 import math, os, stat, shutil, filecmp
 import re
+from historymode import HISTORY_DIR, HistoryMode 
 from helpers import *
 
 
@@ -222,25 +220,26 @@ class DirSyncer:
 
         syncdata:SyncData = SyncData()
 
-        # First, before removing right only files, we save them in history if history mode is enabled.
-        if history_mode_depth > 0:
-            for rightfile in cmp_data.right_only_files|cmp_data.right_only_files_in_dirs:
-                rightpath = os.path.join(rightdir, rightfile)
-                err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
-                if err:
-                    log_error('  '+err, 'Warning: ')
-                    syncdata.warnings.add((rightpath, err))
-
         # Then remove files/directories only in right directory,
         # to free space before copying files from left to right directory,
         # in case there is not enough free space to copy left files without deleting right files first
         if cmp_data.right_only_files or cmp_data.right_only_dirs:
             if verbose:
                 log('  Only in %s' % rightdir)
+            
+            # First, before removing right only files, we save them in history if history mode is enabled.
+            if history_mode_depth > 0:
+                for rightfile in cmp_data.right_only_files|cmp_data.right_only_files_in_dirs:
+                    rightpath = os.path.join(rightdir, rightfile)
+                    err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
+                    if err:
+                        log_error('  '+err, 'Warning: ')
+                        syncdata.warnings.add((rightpath, err))
+            
             for rightfile in cmp_data.right_only_files.union(cmp_data.right_only_dirs):
                 rightpath = os.path.join(rightdir, rightfile)
                 if verbose:
-                    log('   | Deleting %s' % rightpath)
+                    log('    | Deleting : .%s%s' % (os.path.sep, rightfile))
                 try:
                     if os.path.exists(rightpath):
                         try:
@@ -270,7 +269,7 @@ class DirSyncer:
                             log_error('  '+err, 'Warning: ')
                             syncdata.warnings.add((rightpath, err))
                         if verbose:
-                            log('   | Updating %s from %s' % (rightpath, leftpath))
+                            log('    | Updating : .%s%s' % (os.path.sep, f))
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):
@@ -294,7 +293,7 @@ class DirSyncer:
                 try:
                     try:
                         if verbose:
-                            log('   | Copying %s to %s' % (leftpath, rightpath))
+                            log('    | Copying .%s%s' % (os.path.sep, leftfile))
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):

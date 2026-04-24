@@ -1,3 +1,6 @@
+__author__      = "Jérôme Cuq"
+__license__     = "BSD-3-Clause"
+
 import os
 import shutil
 
@@ -34,7 +37,7 @@ class HistoryMode:
             try:
                 destpath = HistoryMode.get_history_filepath(basedir, file, 1)
                 if verbose:
-                    log('   | saving file to history : %s' % destpath)
+                    log('    | Saving file to history : .%s%s' % (os.path.sep, os.path.relpath(file, basedir)))
                 
                 # Remove files in history that should not be kept
                 for i in range(nbtokeep, len(historyfilesizes)):
@@ -54,15 +57,16 @@ class HistoryMode:
             return None
 
 
-    def clean_history(basedir:str, maxnbfiles:int, maxsize:int) -> tuple[list[str], list[str], list[str]]:
+    def clean_history(basedir:str, maxnbfiles:int, maxsize:int, removed_only:bool = False) -> tuple[list[str], list[str], list[str]]:
         """remove unwanted saved versions of files in history, to keep only maxnbfiles and maxsize of files in history.
         A unwanted file can be either a file that should not be kept in history because of maxnbfiles and maxsize limits, 
-        or a file that should be kept in history but whose actual file does not exist anymore 
+        or a file that should be kept in history but whose actual file does not exist anymore .
         (for example because it has been removed outside of the synchronization process).
         param basedir: base directory of the synchronization data (not the history basedir)
         param maxnbfiles: maximum number of files to keep in history, if 0 or less, history mode is disabled, 
                           no file will be saved in history and all files in history will be removed
         param maxsize: maximum total size of files to keep in history, if 0, there is no limit on the total size of files to keep in history
+        param removed_only: only remove history of actual files that do not exist anymore
         return: a tuple containing 3 lists : (list of removed file paths, list of removed file sizes, list of errors that occured while removing files)"""
         errors:list = []
         removedfiles:list = []
@@ -72,7 +76,10 @@ class HistoryMode:
             for root, dirs, files in os.walk(historydir, topdown=False):
                 history_files_info = HistoryMode.get_files_info_in_history_dir(root)
                 for filepath, historyfilepaths, historyfilesizes in history_files_info:
-                    nbtokeep = HistoryMode.get_nb_history_files_to_keep(-1, historyfilesizes, maxnbfiles, maxsize)
+                    if removed_only:
+                        nbtokeep = len(historyfilesizes)
+                    else:
+                        nbtokeep = HistoryMode.get_nb_history_files_to_keep(-1, historyfilesizes, maxnbfiles, maxsize)
                     if not os.path.exists(filepath):
                         nbtokeep = 0
                     # Remove files in history that should not be kept

@@ -1,3 +1,6 @@
+__author__      = "Jérôme Cuq"
+__license__     = "BSD-3-Clause"
+
 from helpers import *
 
 class TestHelpers:

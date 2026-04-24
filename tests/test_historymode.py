@@ -1,3 +1,6 @@
+__author__      = "Jérôme Cuq"
+__license__     = "BSD-3-Clause"
+
 from historymode import *
 from tests.fsmock import FSMock
 from tests.fstree import FSTree

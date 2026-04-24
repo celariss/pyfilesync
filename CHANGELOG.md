@@ -1,3 +1,8 @@
+## 2.2.0 (2026-04-24) :
+- changed command line processing and order of options (that makes a cleaner help)
+- added `--removed-only` option for `show_history` and `clean_history` commands
+- improved logs (file paths printed out are relative to left/right folder of current pair)
+
 ## 2.1.0 (2026-04-15) :
 - added 2 commands to manage history mode :
 	- show_history

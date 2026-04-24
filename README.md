@@ -32,23 +32,43 @@ The message shown is as follow :
     <img src="doc/img/usage.png" width="800"/>
 </p>
 
+### List command
+<p align="left">
+    <img src="doc/img/usage_list.png" width="800"/>
+</p>
+The list command shows list of pairs in config file.
+
 ### Compare command
+<p align="left">
+    <img src="doc/img/usage_compare.png" width="800"/>
+</p>
 The compare command finds all differences between left and right folders of each folder pair defined in config file. It prints out the result as a summary. Use the `--verbose` option to see all files that are only left, only right and different.
 
-### sync command
-The sync command do the actual files synchronization, creating directories and copying files.
-
-### restore option
+#### restore option
 Use `restore` option with `compare` or `sync` command to reverse synchonization direction : the files in the right folder will be compared/sync with left folder.<br>
 The default behaviour is a "clean restore" : Be aware that left only files (i.e. files that were filtered during copy operation, and that are NOT present in right folder) will be removed.<br>
 **To preserve left only files, use the `--ignore-target-only` option**
 
+### sync command
+<p align="left">
+    <img src="doc/img/usage_sync.png" width="800"/>
+</p>
+The sync command does the actual files synchronization, creating directories and copying files.
+
 ### show_history command
-The `show_history` command prints out all synced files that have some versions saved in history
+<p align="left">
+    <img src="doc/img/usage_show.png" width="800"/>
+</p>
+The `show_history` command prints out all synced files that have some versions saved in history.<br>
+Use the optional argument `--removed-only` to only get history of files that have been removed.
 
 ### clean_history command
+<p align="left">
+    <img src="doc/img/usage_clean.png" width="800"/>
+</p>
 The `clean_history` command seeks for versions of files that should not be kept in history, and removes them.
 This is useful after history mode parameters have been changed in config file (ex: `depth` parameter decreased), or to clean versions of files removed in right folder.
+<br>
 
 # Config file format
 A config file is a JSON file containing folder pairs to synchronize.
