@@ -11,13 +11,16 @@ HISTORY_FORMAT = '_#{:0>2d}#'
 HISTORY_FILE_PATTERN = '^(..*)_#([0-9]{2})#(.*)?$'
 
 class HistoryMode:
-    def save_file(basedir:str, file:str, maxnbfiles:int, maxsize:int, verbose:bool) -> str | None:
+    def save_file(basedir:str, file:str, maxnbfiles:int, maxsize:int, on_save_file:callable=None) -> str | None:
         """save a file in history (by moving the file), and remove old files in history if needed to keep only maxnbfiles and maxsize of files in history.
         param basedir: base directory of the synchronization data (not the history basedir)
         param file: file path, in the synchronization directory, to move to history (actual file, not in history directory)
         param maxnbfiles: maximum number of files to keep in history, if 0 or less, history mode is disabled, 
                           no file will be saved in history and all files in history will be removed
-        param maxsize: maximum total size of files to keep in history, if 0, there is no limit on the total size of files to keep in history"""
+        param maxsize: maximum total size of files to keep in history, if 0, there is no limit on the total size of files to keep in history
+        param on_save_file: callback function to call when a file is saved in history, with parameters (basedir, filepath, destpath),
+                            where basedir is the base directory of the synchronization data, filepath is the file path relative to basedir of the file to save in history, and destpath is the path where the file has been saved in history
+        return: an error message if an error occured while saving file in history, or None if the file has been saved successfully or if history mode is disabled"""
         if maxnbfiles > 0:
             historyfilesizes:list
             historyfilepaths:list
@@ -36,8 +39,8 @@ class HistoryMode:
 
             try:
                 destpath = HistoryMode.get_history_filepath(basedir, file, 1)
-                if verbose:
-                    log('    | Saving file to history : .%s%s' % (os.path.sep, os.path.relpath(file, basedir)))
+                if on_save_file:
+                    on_save_file(basedir, os.path.relpath(file, basedir), destpath)
                 
                 # Remove files in history that should not be kept
                 for i in range(nbtokeep, len(historyfilesizes)):
@@ -51,7 +54,6 @@ class HistoryMode:
                 os.makedirs(os.path.dirname(destpath), exist_ok=True)
                 shutil.move(file, destpath)
             except OSError as exc:
-                log_error('Error while saving file in history : '+str(exc))
                 return 'Error while saving file in history : '+str(exc)
             
             return None

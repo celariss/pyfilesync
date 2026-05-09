@@ -71,7 +71,7 @@ class SyncData(object):
 
 
 class DirSyncer:
-    def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False, verbose:bool=False) -> CmpData:
+    def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False, on_warning:callable=None) -> CmpData:
         """compares two directories and returns a CmpData object containing the results
         
         :param leftdir: path to the left directory
@@ -80,7 +80,8 @@ class DirSyncer:
         :param exclude: exclude filters as a list of regex
         :param compare_file_content: indicates whether to compare files content to detect different files, instead of only comparing files size and modification time, defaults to False
         :param ignore_right_only: indicates whether to ignore files and directories only present in right directory, defaults to False
-        :param verbose: indicates whether to display verbose output, defaults to False"""
+        :param on_warning: callback function to call when a warning is encountered,
+                            with parameters (path:str, warning:str)"""
 
         # left_files will receive all (filtered) files from left folder
         left_files:set = set()
@@ -101,7 +102,6 @@ class DirSyncer:
             try:
                 exclude_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                log_error('  Invalid exclude regex pattern: '+pattern)
                 return CmpData(errors=set({(pattern, 'Invalid exclude regex pattern')}))
 
         if not include: include = []
@@ -110,7 +110,6 @@ class DirSyncer:
             try:
                 include_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                log_error('  Invalid include regex pattern: '+pattern)
                 return CmpData(errors=set({(pattern, "Invalid include regex pattern")}))
             
         explicitly_excluded_dirs:set = set()
@@ -162,8 +161,8 @@ class DirSyncer:
             file1 = os.path.join(leftdir, f)
             file2 = os.path.join(rightdir, f)
             err = False
-            fprop1 = DirSyncer.__get_file_properties__(file1, warnings)
-            fprop2 = DirSyncer.__get_file_properties__(file2, warnings)
+            fprop1 = DirSyncer.__get_file_properties__(file1, warnings, on_warning)
+            fprop2 = DirSyncer.__get_file_properties__(file2, warnings, on_warning)
             if fprop1 and fprop2:
                 # comparison criteria to detect different files are files size and modification time (or files content if asked)
                 different = fprop1.st_size != fprop2.st_size
@@ -188,7 +187,7 @@ class DirSyncer:
             cmpdata.right_only_dirs = DirSyncer._get_roots(right_only_all_dirs)
             right_only = right_files.difference(common_files)
             for f in right_only:
-                fprop = DirSyncer.__get_file_properties__(os.path.join(rightdir, f), warnings)
+                fprop = DirSyncer.__get_file_properties__(os.path.join(rightdir, f), warnings, on_warning)
                 if fprop:
                     cmpdata.size_needed -= fprop.st_size
                     cmpdata.size_to_delete += fprop.st_size
@@ -199,7 +198,7 @@ class DirSyncer:
 
         cmpdata.left_only_files = left_files.difference(common_files)
         for file in cmpdata.left_only_files:
-            fprop = DirSyncer.__get_file_properties__(os.path.join(leftdir, file), warnings)
+            fprop = DirSyncer.__get_file_properties__(os.path.join(leftdir, file), warnings, on_warning)
             if fprop:
                 cmpdata.size_to_copy += fprop.st_size
                 cmpdata.size_needed += fprop.st_size
@@ -207,8 +206,8 @@ class DirSyncer:
         return cmpdata
 
     
-    def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData,
-                     history_mode_depth:int=0, history_mode_file_max_saved_size:int=0, verbose:bool=False) -> SyncData:
+    def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, history_mode_depth:int=0, 
+                  history_mode_file_max_saved_size:int=0, verbose:bool=False, on_sync_file:callable=None, on_warning:callable=None) -> SyncData:
         """synchronizes two directories according to the given CmpData results, and returns sync results as SyncData
         
          :param leftdir: path to the left directory
@@ -216,30 +215,37 @@ class DirSyncer:
          :param cmp_data: CmpData object containing the results of directories comparison, to use to synchronize directories
          :param history_mode_depth: history mode depth to use when synchronizing files, defaults to 0 (no history)
          :param history_mode_file_max_saved_size: history mode file max saved size to use when synchronizing files, defaults to 0 (no limit on file size to save in history)
-         :param verbose: indicates whether to display verbose output, defaults to False"""
+         :param verbose: indicates whether to display verbose output, defaults to False
+         :param on_sync_file: callback function to call when a file is synchronized,
+                             with parameters (action:str, filepath:str, leftdir:str, rightdir:str), where action is 'start_deleting', 'delete', 'start_copying', 'copy', 'start_updating', 'update' or 'save-to-history'
+         :param on_warning: callback function to call when a warning is encountered,
+                            with parameters (path:str, warning:str)"""
 
         syncdata:SyncData = SyncData()
+
+        on_save_file:callable = lambda basedir, file, destpath: on_sync_file('save-to-history', file, None, basedir)
 
         # Then remove files/directories only in right directory,
         # to free space before copying files from left to right directory,
         # in case there is not enough free space to copy left files without deleting right files first
         if cmp_data.right_only_files or cmp_data.right_only_dirs:
-            if verbose:
-                log('  Only in %s' % rightdir)
+            if on_sync_file:
+                on_sync_file('start_deleting', None, None, rightdir)
             
             # First, before removing right only files, we save them in history if history mode is enabled.
             if history_mode_depth > 0:
                 for rightfile in cmp_data.right_only_files|cmp_data.right_only_files_in_dirs:
                     rightpath = os.path.join(rightdir, rightfile)
-                    err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
+                    err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, on_save_file=on_save_file if on_sync_file else None)
                     if err:
-                        log_error('  '+err, 'Warning: ')
+                        if on_warning:
+                            on_warning(rightpath, err)
                         syncdata.warnings.add((rightpath, err))
             
             for rightfile in cmp_data.right_only_files.union(cmp_data.right_only_dirs):
                 rightpath = os.path.join(rightdir, rightfile)
-                if verbose:
-                    log('    | Deleting : .%s%s' % (os.path.sep, rightfile))
+                if on_sync_file:
+                    on_sync_file('delete', rightfile, None, rightdir)
                 try:
                     if os.path.exists(rightpath):
                         try:
@@ -249,7 +255,8 @@ class DirSyncer:
                                 os.chmod(rightpath, stat.S_IWRITE)
                             DirSyncer.__rm_file_or_dir__(rightpath)
                 except Exception as e:
-                    log_error('  '+str(e), 'Warning: ')
+                    if on_warning:
+                        on_warning(rightpath, str(e))
                     syncdata.warnings.add((rightpath, str(e)))
                     continue
                 else:
@@ -257,26 +264,28 @@ class DirSyncer:
 
         # Then update files that are different between left and right directories
         if cmp_data.different_files:
-            if verbose:
-                log('  Different in %s and %s' % (leftdir, rightdir))
+            if on_sync_file:
+                on_sync_file('start_updating', None, leftdir, rightdir)
             for f in cmp_data.different_files:
                 leftpath = os.path.join(leftdir, f)
                 rightpath = os.path.join(rightdir, f)
                 try:
                     try:
-                        err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, verbose)
+                        err = HistoryMode.save_file(rightdir, rightpath, history_mode_depth, history_mode_file_max_saved_size, on_save_file=on_save_file if on_sync_file else None)
                         if err:
-                            log_error('  '+err, 'Warning: ')
+                            if on_warning:
+                                on_warning(rightpath, err)
                             syncdata.warnings.add((rightpath, err))
-                        if verbose:
-                            log('    | Updating : .%s%s' % (os.path.sep, f))
+                        if on_sync_file:
+                            on_sync_file('update', f, leftdir, rightdir)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):
                             os.chmod(rightpath, stat.S_IWRITE)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
-                    log_error('  '+str(e), 'Warning: ')
+                    if on_warning:
+                        on_warning(rightpath, str(e))
                     syncdata.warnings.add((f, str(e)))
                     continue
                 else:
@@ -285,22 +294,23 @@ class DirSyncer:
 
         # At last copy files/directories only in left directory to right directory
         if cmp_data.left_only_files or cmp_data.left_only_empty_dirs:
-            if verbose:
-                log('  Only in %s' % leftdir)
+            if on_sync_file:
+                on_sync_file('start_copying', None, leftdir, rightdir)
             for leftfile in cmp_data.left_only_files.union(cmp_data.left_only_empty_dirs):
                 leftpath = os.path.join(leftdir, leftfile)
                 rightpath = os.path.join(rightdir, leftfile)
                 try:
                     try:
-                        if verbose:
-                            log('    | Copying .%s%s' % (os.path.sep, leftfile))
+                        if on_sync_file:
+                            on_sync_file('copy', leftfile, leftdir, rightdir)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                     except PermissionError as e:
                         if os.path.exists(rightpath):
                             os.chmod(rightpath, stat.S_IWRITE)
                         DirSyncer.__copy_dir_or_file__(leftpath, rightpath)
                 except Exception as e:
-                    log_error('  '+str(e), 'Warning: ')
+                    if on_warning:
+                            on_warning(rightpath, str(e))
                     syncdata.warnings.add((leftfile, str(e)))
                     continue
                 else:
@@ -341,12 +351,13 @@ class DirSyncer:
          self.st_size = st_size
          self.st_mtime = st_mtime
 
-    def __get_file_properties__(path:str, warnings:set) -> FileProperties:
+    def __get_file_properties__(path:str, warnings:set, on_warning:callable=None) -> FileProperties:
         try:
             st:os.stat_result = os.stat(path)
             return DirSyncer.FileProperties(st.st_size, st.st_mtime)
         except os.error as e:
-            log_error('  '+str(e), 'Warning: ')
+            if on_warning:
+                on_warning(path, str(e))
             warnings.add((path, str(e)))
         return None
 

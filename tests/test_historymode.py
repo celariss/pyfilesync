@@ -104,7 +104,7 @@ class TestHistoryMode:
         assert sizes[0] == 4
         assert sizes[1] == 5
 
-        HistoryMode.save_file(basedir, file, 3, 0, True)
+        HistoryMode.save_file(basedir, file, 3, 0)
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 3
         assert len(sizes) == 3
@@ -113,7 +113,7 @@ class TestHistoryMode:
         assert sizes[2] == 5 # 'test#'
 
         TestHistoryMode._create_file(file, '###file###__')
-        HistoryMode.save_file(basedir, file, 2, 0, True)
+        HistoryMode.save_file(basedir, file, 2, 0)
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 2
         assert len(sizes) == 2
@@ -121,7 +121,7 @@ class TestHistoryMode:
         assert sizes[1] == 10 # '###file###'
 
         TestHistoryMode._create_file(file, '###file###__')
-        HistoryMode.save_file(basedir, file, 2, 9, True)
+        HistoryMode.save_file(basedir, file, 2, 9)
         paths, sizes = HistoryMode.get_file_history(basedir, file)
         assert len(paths) == 0
         assert len(sizes) == 0

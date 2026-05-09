@@ -240,7 +240,7 @@ class FSMock:
         else:
             return FSMock.system_os_dirname(path).replace('\\', '/')
         
-    def _get_file_properties_mock_(path:str, errors:list) -> DirSyncer.FileProperties:
+    def _get_file_properties_mock_(path:str, errors:list, on_warning:callable=None) -> DirSyncer.FileProperties:
         path = path.replace('\\', '/')
         if path in FSMock.file_properties:
             return FSMock.file_properties[path]

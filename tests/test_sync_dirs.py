@@ -102,7 +102,7 @@ class TestSyncDirs:
                     text = funcname+':Test case #%d (%s paths)' % (nb,text)
                     FSMock.clean_sync_data()
 
-                    sync_result = DirSyncer.sync_dirs('left', 'right', cmp_data)
+                    sync_result = DirSyncer.sync_dirs('left', 'right', cmp_data, history_mode_depth=1)
                     assert TestSyncDirs.are_syncdata_equal(sync_result, sync_data, text)
                     
                     if FSMock.is_os_fs_windows_style: copied = set({(src.replace('/','\\'), dest.replace('/','\\')) for (src,dest) in copied})

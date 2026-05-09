@@ -129,6 +129,27 @@ def log_sync_result(syncdata:SyncData, verbose):
             log("    Deleted: %d files/dirs" % syncdata.nb_deleted)
 
 
+def on_sync_file(action:str, filepath:str, leftfolder:str, rightfolder:str):
+    if action=='copy':
+        log('    | Copying : .%s%s' % (os.path.sep, filepath))
+    elif action=='update':
+        log('    | Updating : .%s%s' % (os.path.sep, filepath))
+    elif action=='delete':
+        log('    | Deleting : .%s%s' % (os.path.sep, filepath))
+    elif action=='start_deleting':
+        log('  Only in %s' % rightfolder)
+    elif action=='start_updating':
+        log('  Different in %s and %s' % (leftfolder, rightfolder))
+    elif action=='start_copying':
+        log('  Only in %s' % leftfolder)
+    elif action=='save-to-history':
+        log('    | Saving to history : .%s%s' % (os.path.sep, filepath))
+    
+
+def on_warning(path:str, warning:str):
+    log_error('  '+warning, 'Warning: ')
+
+
 def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
                      restore:bool = False, ignore_target_only:bool = False, verbose: bool = False) -> tuple[CmpData,SyncData]:
     """synchronize two folders in mirror mode (left to right or right to left, source files remain unchanged)
@@ -152,6 +173,7 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
 
     elif not os.path.exists(right):
         if create_root:
+            log("  Right folder <"+right+"> does not exist, creating it...")
             try:
                 os.makedirs(right)
             except Exception as e:
@@ -165,7 +187,12 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
         return (CmpData(errors=errors), None)
 
     cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex, exclude=pair.exclude_regex,
-                                            compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only, verbose=verbose)
+                                            compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only,
+                                            on_warning=on_warning)
+    
+    if cmpdata.errors:
+        for error in cmpdata.errors:
+            log_error(str(error[1])+" : "+str(error[0]))
 
     if action=='compare':
         log_compare_result(cmpdata, verbose)
@@ -173,7 +200,8 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     syncdata:SyncData = None
     if action=='sync' and not cmpdata.errors:
         syncdata = DirSyncer.sync_dirs(left, right, cmpdata, history_mode_depth=pair.history_mode_depth, 
-                                       history_mode_file_max_saved_size=pair.history_mode_file_max_saved_size, verbose=verbose)
+                                       history_mode_file_max_saved_size=pair.history_mode_file_max_saved_size, 
+                                       verbose=verbose, on_sync_file=on_sync_file if verbose else None, on_warning=on_warning)
         log_sync_result(syncdata, verbose)
     
     cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
