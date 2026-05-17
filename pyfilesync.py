@@ -186,7 +186,7 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     if errors:
         return (CmpData(errors=errors), None)
 
-    cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_regex, exclude=pair.exclude_regex,
+    cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_patterns, exclude=pair.exclude_patterns,
                                             compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only,
                                             on_warning=on_warning)
     
@@ -431,11 +431,12 @@ config string : must be surrounded by quotes ( '...' ) and
 
     args.config = args.config.strip('\'"')
     if args.config.startswith('{') and args.config.endswith('}'):
-        error = config.load_json_string(args.config)
+        errors = config.load_json_string(args.config)
     else:
-        error = config.load_file(args.config)
-    if error:
-        log_error(error+" : "+args.config)
+        errors = config.load_file(args.config)
+    if errors:
+        for error in errors:
+            log_error(error+" : "+args.config)
         return 3
        
     if args.command == 'list':

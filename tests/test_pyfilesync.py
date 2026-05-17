@@ -266,17 +266,17 @@ class TestPyFileSync:
             # TEST CASE #14 (Error) : 'tests/config1.json' - sync action with error on include pattern
             nb += 1
             FSMock.clean_sync_data()
-            save = config.pairs[1].include_regex.copy()
-            config.pairs[1].include_regex.append('**')
+            save = config.pairs[1].include_patterns.copy()
+            config.pairs[1].include_patterns.append('**')
             res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', verbose = True)
             assert len(res.errors) == 1 and check_errors_format(res.errors)
-            config.pairs[1].include_regex = save
+            config.pairs[1].include_patterns = save
 
             # TEST CASE #13 (Error) : 'tests/config1.json' - sync action with error on exclude pattern
             nb += 1
             FSMock.clean_sync_data()
-            save = config.pairs[1].exclude_regex.copy()
-            config.pairs[1].exclude_regex.append('**')
+            save = config.pairs[1].exclude_patterns.copy()
+            config.pairs[1].exclude_patterns.append('**')
             res:FolderPairsSyncResults = sync_folders_pairs(config, 'sync', verbose = True)
             assert len(res.errors) == 1 and check_errors_format(res.errors)
-            config.pairs[1].exclude_regex = save
+            config.pairs[1].exclude_patterns = save

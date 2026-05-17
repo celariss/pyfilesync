@@ -1,7 +1,6 @@
 __author__      = "Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
-from enum import Enum
 import re
 import os
 import sys

@@ -2,6 +2,7 @@ from __future__ import annotations # needed for python3 older than 3.14
 __author__      = "Jérôme Cuq"
 __license__     = "BSD-3-Clause"
 
+from enum import Enum
 import fnmatch
 import math, os, stat, shutil, filecmp
 import re
