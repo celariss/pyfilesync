@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 __author__      = "Jérôme Cuq"
 __license__     = "BSD-3-Clause"
-__version__     = "2.2.0"
+__version__     = "2.3.0"
 
 import argparse
 import sys, os
@@ -161,8 +161,8 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     :param ignore_target_only: indicates whether the function must ignore files only in target folder, defaults to False
     :param verbose: indicates whether the function must be verbose, defaults to False
     """
-    left = pair.right if restore else pair.left
-    right = pair.left if restore else pair.right
+    left = pair.right_p if restore else pair.left_p
+    right = pair.left_p if restore else pair.right_p
     
     log(("Synchronizing" if action=='sync' else "Comparing") + " '"+pair.name+"' : <"+left+"> to <"+right+">...")
 
@@ -186,7 +186,7 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     if errors:
         return (CmpData(errors=errors), None)
 
-    cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_patterns, exclude=pair.exclude_patterns,
+    cmpdata:CmpData = DirSyncer.compare_dirs(left, right, include=pair.include_patterns_p, exclude=pair.exclude_patterns_p,
                                             compare_file_content=pair.cmp_files_content, ignore_right_only=ignore_target_only,
                                             on_warning=on_warning)
     
@@ -199,9 +199,9 @@ def sync_folder_pair(pair:PairSection, action: str, create_root: bool = False,
     
     syncdata:SyncData = None
     if action=='sync' and not cmpdata.errors:
-        syncdata = DirSyncer.sync_dirs(left, right, cmpdata, history_mode_depth=pair.history_mode_depth, 
-                                       history_mode_file_max_saved_size=pair.history_mode_file_max_saved_size, 
-                                       verbose=verbose, on_sync_file=on_sync_file if verbose else None, on_warning=on_warning)
+        syncdata = DirSyncer.sync_dirs(left, right, cmpdata, history_mode_depth=pair.history_mode_depth_p, 
+                                       history_mode_file_max_saved_size=pair.history_mode_file_max_saved_size_p, 
+                                       on_sync_file=on_sync_file if verbose else None, on_warning=on_warning)
         log_sync_result(syncdata, verbose)
     
     cmpdata.left_only_files = set_root_dir(cmpdata.left_only_files, left)
@@ -286,7 +286,7 @@ def show_history(config:SyncConfig, pairs2process:list[str] = None, removed_only
     
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
-            right = replace_env_variables(pair.right)
+            right = replace_env_variables(pair.right_p)
             name = pair.name
             log('')
             log('Pair "%s" (base folder "%s") : ' % (name, right))
@@ -324,7 +324,7 @@ def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:boo
     
     for pair in config.pairs:
         if (not pairs2process) or (pair.name in pairs2process):
-            right = replace_env_variables(pair.right)
+            right = replace_env_variables(pair.right_p)
             name = pair.name
             log('')
             log('Pair "'+name+'" : ')
@@ -334,7 +334,7 @@ def clean_history(config:SyncConfig, pairs2process:list[str] = None, verbose:boo
             else:
                 history_dir = os.path.join(right, HISTORY_DIR)
                 if os.path.exists(history_dir):
-                    removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth, pair.history_mode_file_max_saved_size, removed_only)
+                    removed_files, sizes, errors = HistoryMode.clean_history(right, pair.history_mode_depth_p, pair.history_mode_file_max_saved_size_p, removed_only)
                     
                     if removed_files:
                         if verbose:
@@ -441,8 +441,8 @@ config string : must be surrounded by quotes ( '...' ) and
        
     if args.command == 'list':
         for pair in config.pairs:
-            left = replace_env_variables(pair.left)
-            right = replace_env_variables(pair.right)
+            left = replace_env_variables(pair.left_p)
+            right = replace_env_variables(pair.right_p)
             name = pair.name
             log('')
             log('Pair "'+name+'" : ')

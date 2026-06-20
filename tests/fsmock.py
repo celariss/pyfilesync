@@ -341,6 +341,7 @@ class FSMock:
     def _os_makedirs(name, mode=0o777, exist_ok=False):
         if FSMock._called_from_outside(name):
             FSMock.system_os_makedirs(name,mode=mode,exist_ok=exist_ok)
+        FSMock.os_path_exists_values[name] = True
     
     def _shutil_copy2(src, dest):
         if FSMock._called_from_outside(src):

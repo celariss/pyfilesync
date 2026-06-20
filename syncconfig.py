@@ -6,96 +6,167 @@ import json
 import re
 from helpers import *
 
+CMP_FILE_CONTENT_DEFAULT = False
+HISTORY_MODE_DEFAULT_DEPTH = 0
+HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE = 0
 
-class GlobalSection:
-    """Parameters in global section apply to all pair sections in configuration"""
-    def __init__(self):
-        self.cmp_files_content:bool = False
-        # self.include_patterns is built from self.include_regex and self.include (not loaded from config file)
-        self.include_patterns:list[str] = []
-        # self.exclude_patterns is built from self.exclude_regex and self.exclude (not loaded from config file)
-        self.exclude_patterns:list[str] = []
-        self.include_regex:list[str] = []
-        self.exclude_regex:list[str] = []
-        self.include:list[str] = []
-        self.exclude:list[str] = []
-        self.history_mode_depth:int = 0
-        self.history_mode_file_max_saved_size:int = 0
+class SectionBase:
+    """section base class"""
+    def __init__(self):        
+        self.cmp_files_content:bool = CMP_FILE_CONTENT_DEFAULT
 
-    def load(self, config:dict) -> list[str]:
+        self.include_patterns_p:list[str] = []
+        self.exclude_patterns_p:list[str] = []
+        self.include_regex_raw:list[str] = []
+        self.exclude_regex_raw:list[str] = []
+        self.include_raw:list[str] = []
+        self.exclude_raw:list[str] = []
+
+        self.history_mode_depth_p:int = HISTORY_MODE_DEFAULT_DEPTH
+        self.history_mode_depth_raw:int = HISTORY_MODE_DEFAULT_DEPTH
+        self.history_mode_file_max_saved_size_p:int = HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE
+        self.history_mode_file_max_saved_size_raw:int = HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE
+
+    def load(self, config:dict, section_name:str, parent:SectionBase = None) -> list[str]:
         errors:list = []
 
-        self.cmp_files_content = config.get('cmp_files_content', False)
-        self.include = SyncConfig.check_list(config.get('include', []), 'global.include', errors)
-        self.exclude = SyncConfig.check_list(config.get('exclude', []), 'global.exclude', errors)
-        self.include_regex = SyncConfig.check_list(config.get('include_regex', []), 'global.include_regex', errors)
-        self.exclude_regex = SyncConfig.check_list(config.get('exclude_regex', []), 'global.exclude_regex', errors)
-        (self.include_patterns, self.exclude_patterns) = SyncConfig.get_patterns(config)
+        self.cmp_files_content = config.get('cmp_files_content', parent.cmp_files_content if parent else CMP_FILE_CONTENT_DEFAULT)
+
+        self.include_raw = SyncConfig._check_list(config.get('include', []), section_name + '.include', errors)
+        self.exclude_raw = SyncConfig._check_list(config.get('exclude', []), section_name + '.exclude', errors)
+        self.include_regex_raw = SyncConfig._check_list(config.get('include_regex', []), section_name + '.include_regex', errors)
+        self.exclude_regex_raw = SyncConfig._check_list(config.get('exclude_regex', []), section_name + '.exclude_regex', errors)
+        
         history_data:dict = config.get('history_mode', {})
         if not isinstance(history_data, dict):
             errors.append("Config file is not valid, 'history_mode' must be a dictionary")
-            self.history_mode_depth = 0
-            self.history_mode_file_max_saved_size = -1
+            self.history_mode_depth_raw = HISTORY_MODE_DEFAULT_DEPTH
+            self.history_mode_file_max_saved_size_raw = HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE
         else:
-            self.history_mode_depth = history_data.get('depth', 0)
-            self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', -1)
-        if self.history_mode_file_max_saved_size != -1:
-            self.history_mode_file_max_saved_size = value_with_unit_to_int(self.history_mode_file_max_saved_size, -1)
-            if self.history_mode_file_max_saved_size == -1:
-                errors.append("Config file is not valid, 'history_mode.file_max_saved_size' value is not valid : "+str(history_data.get('file_max_saved_size', '')))
-        else:
-            self.history_mode_file_max_saved_size = 0
+            self.history_mode_depth_raw = history_data.get('depth', HISTORY_MODE_DEFAULT_DEPTH)
+            self.history_mode_file_max_saved_size_raw = history_data.get('file_max_saved_size', HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE)
+        
+        self.on_raw_data_changed(errors, parent)
+
         return errors
+    
+    def to_dict(self) -> dict:
+        """convert this config to a dict that can be easily converted to json"""
+        res:dict = {}
+        if self.cmp_files_content != CMP_FILE_CONTENT_DEFAULT:
+            res['cmp_files_content'] = self.cmp_files_content
+        if len(self.include_raw)>0:
+            res['include'] = self.include_raw
+        if len(self.exclude_raw)>0:
+            res['exclude'] = self.exclude_raw
+        if len(self.include_regex_raw)>0:
+            res['include_regex'] = self.include_regex_raw
+        if len(self.exclude_regex_raw)>0:
+            res['exclude_regex'] = self.exclude_regex_raw
+        
+        if self.history_mode_depth_raw != HISTORY_MODE_DEFAULT_DEPTH or self.history_mode_file_max_saved_size_raw != HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE:
+            res['history_mode'] = {}
+            if self.history_mode_depth_raw != HISTORY_MODE_DEFAULT_DEPTH:
+                res['history_mode']['depth'] = self.history_mode_depth_raw
+            if self.history_mode_file_max_saved_size_raw != HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE:
+                res['history_mode']['file_max_saved_size'] = self.history_mode_file_max_saved_size_raw
+        return res
+    
+    def on_raw_data_changed(self, errors:list, parent:SectionBase = None):
+        (self.include_patterns_p, self.exclude_patterns_p) = self._get_patterns()
+        if parent:
+            self.include_patterns_p.extend(parent.include_patterns_p)
+            self.exclude_patterns_p.extend(parent.exclude_patterns_p)
+        
+        self.history_mode_depth_p = self.history_mode_depth_raw
+        if self.history_mode_depth_p == HISTORY_MODE_DEFAULT_DEPTH and parent is not None:
+            self.history_mode_depth_p = parent.history_mode_depth_p
+        
+        if isinstance(self.history_mode_file_max_saved_size_raw, str):
+            self.history_mode_file_max_saved_size_p = value_with_unit_to_int(self.history_mode_file_max_saved_size_raw, -1)
+            if self.history_mode_file_max_saved_size_p == -1:
+                errors.append("Config file is not valid, 'history_mode.file_max_saved_size' value is not valid : "+self.history_mode_file_max_saved_size_raw)
+                self.history_mode_file_max_saved_size_p = parent.history_mode_file_max_saved_size_p if parent else HISTORY_MODE_DEFAULT_FILE_MAX_SAVED_SIZE
+        else:
+            self.history_mode_file_max_saved_size_p = self.history_mode_file_max_saved_size_raw
+
+    def _get_patterns(self) -> tuple[list,list,str]:
+        """
+        convert include/exclude glob patterns to regex and concatenate them with include/exclude regex.
+        env vars are replaced by their respecting values.
+        :return: (include_patterns list, exclude_patterns list)
+        """
+        exclude_patterns:list = SyncConfig._check_list_and_replace_envars(self.exclude_regex_raw)
+        include_patterns:list = SyncConfig._check_list_and_replace_envars(self.include_regex_raw)
+
+        exclude:list = SyncConfig._check_list_and_replace_envars(self.exclude_raw)
+        include:list = SyncConfig._check_list_and_replace_envars(self.include_raw)
+        
+        # -> we use include patterns (if any) by converting them to regex
+        if len(include)>0:
+            include_patterns.extend([r'|'.join([fnmatch.translate(x) for x in include])])
+        if len(exclude)>0:
+            exclude_patterns.extend([r'|'.join([fnmatch.translate(x) for x in exclude])])
+
+        return (include_patterns, exclude_patterns)
+
+
+class GlobalSection(SectionBase):
+    """Parameters in global section apply to all pair sections in configuration"""
+    def __init__(self):
+        super().__init__()
+    
+    def load(self, config: dict) -> list[str]:
+        return super().load(config, 'global', None)
+    
+    def to_dict(self) -> dict:
+        """convert this config to a dict that can be easily converted to json"""
+        return super().to_dict()
+    
+    def on_raw_data_changed(self, errors:list, parent:SectionBase = None):
+        super().on_raw_data_changed(errors, parent)
    
 
-class PairSection:
+class PairSection(SectionBase):
     """a pair section contains synchronization parameters of a folders pair"""
     def __init__(self):
+        super().__init__()
         self.name:str = ''
-        self.left:str = ''
-        self.right:str = ''
-        self.cmp_files_content:bool = False
-        self.include_patterns:list[str] = []
-        self.exclude_patterns:list[str] = []
-        self.include_regex:list[str] = []
-        self.exclude_regex:list[str] = []
-        self.include:list[str] = []
-        self.exclude:list[str] = []
-        self.history_mode_depth:int = 0
-        self.history_mode_file_max_saved_size:int = 0
+
+        self.left_raw:str = ''
+        self.left_p:str = ''
+
+        self.right_raw:str = ''
+        self.right_p:str = ''
 
     def load(self, pairconfig: dict, globalconfig:GlobalSection) -> list[str]:
-        errors:list = []
-
         """fill this instance fields from dictionary. The given global config is used to fill fields not defined in "pairconfig"."""
         self.name = pairconfig.get('name', '-')
-        self.left = replace_env_variables(pairconfig['left'])
-        self.right = replace_env_variables(pairconfig['right'])
-        self.cmp_files_content = pairconfig.get('cmp_files_content', globalconfig.cmp_files_content)
+        self.left_raw = pairconfig['left']
+        self.right_raw = pairconfig['right']
 
-        self.include = SyncConfig.check_list(pairconfig.get('include', []), self.name+'.include', errors)
-        self.exclude = SyncConfig.check_list(pairconfig.get('exclude', []), self.name+'.exclude', errors)
-        self.include_regex = SyncConfig.check_list(pairconfig.get('include_regex', []), self.name+'.include_regex', errors)
-        self.exclude_regex = SyncConfig.check_list(pairconfig.get('exclude_regex', []), self.name+'.exclude_regex', errors)
-        (self.include_patterns, self.exclude_patterns) = SyncConfig.get_patterns(pairconfig)
-        self.include_patterns.extend(globalconfig.include_patterns)
-        self.exclude_patterns.extend(globalconfig.exclude_patterns)
+        errors:list = super().load(pairconfig, self.name, globalconfig)
+        self.on_raw_data_changed(errors, globalconfig)
 
-        history_data:dict = pairconfig.get('history_mode', {})
-        if not isinstance(history_data, dict):
-            errors.append("Config file is not valid, 'history_mode' must be a dictionary")
-            self.history_mode_depth = 0
-            self.history_mode_file_max_saved_size = -1
-        else:
-            self.history_mode_depth = history_data.get('depth', globalconfig.history_mode_depth)
-            self.history_mode_file_max_saved_size = history_data.get('file_max_saved_size', -1)
-        if self.history_mode_file_max_saved_size != -1:
-            self.history_mode_file_max_saved_size = value_with_unit_to_int(self.history_mode_file_max_saved_size, -1)
-            if self.history_mode_file_max_saved_size == -1:
-                errors.append("Config file is not valid, 'history_mode.file_max_saved_size' value is not valid : "+str(history_data.get('file_max_saved_size', '')))
-        else:
-            self.history_mode_file_max_saved_size = globalconfig.history_mode_file_max_saved_size
         return errors
+    
+    def to_dict(self) -> dict:
+        """convert this config to a dict that can be easily converted to json"""
+        res:dict = super().to_dict()
+
+        res.update({
+            'name': self.name,
+            'left': self.left_raw,
+            'right': self.right_raw,
+        })
+
+        return res
+    
+    def on_raw_data_changed(self, errors:list, parent:SectionBase = None):
+        self.left_p = replace_env_variables(self.left_raw)
+        self.right_p = replace_env_variables(self.right_raw)
+        super().on_raw_data_changed(errors, parent)
+
 
 class SyncConfig:
     def __init__(self):
@@ -110,7 +181,7 @@ class SyncConfig:
         """
         result:dict = {}
         if not os.path.exists(path):
-            return "Config file <"+path+"> does not exist"
+            return ["Config file <"+path+"> does not exist"]
 
         with open(path, 'r', encoding='utf8') as f:
             errors = self.load_json_string(f.read())
@@ -132,35 +203,13 @@ class SyncConfig:
     
     def to_dict(self) -> dict:
         """convert this config to a dict that can be easily converted to json"""
-        return {
-            'global': {
-                'cmp_files_content': self.globalconfig.cmp_files_content,
-                'include_regex': self.globalconfig.include_regex,
-                'exclude_regex': self.globalconfig.exclude_regex,
-                'include': self.globalconfig.include,
-                'exclude': self.globalconfig.exclude,
-                'history_mode': {
-                    'depth': self.globalconfig.history_mode_depth,
-                    'file_max_saved_size': self.globalconfig.history_mode_file_max_saved_size
-                }
-            },
+        res = {
+            'global': self.globalconfig.to_dict(),
             'pairs': [
-                {
-                    'name': pair.name,
-                    'left': pair.left,
-                    'right': pair.right,
-                    'cmp_files_content': pair.cmp_files_content,
-                    'include_regex': pair.include_regex,
-                    'exclude_regex': pair.exclude_regex,
-                    'include': pair.include,
-                    'exclude': pair.exclude,
-                    'history_mode': {
-                        'depth': pair.history_mode_depth,
-                        'file_max_saved_size': pair.history_mode_file_max_saved_size
-                    }
-                } for pair in self.pairs
+                pair.to_dict() for pair in self.pairs
             ]
         }
+        return res
 
     def load_json_string(self, config:str) -> list[str]:
         """load config from a string
@@ -212,8 +261,15 @@ class SyncConfig:
             errors.extend( pair.load(paircfg, self.globalconfig) )
             self.pairs.append(pair)
         return errors
- 
-    def check_list(obj:any, name:str=None, errors:list=None) -> list:
+    
+    def on_raw_data_changed(self) -> list[str]:
+        errors:list = []
+        self.globalconfig.on_raw_data_changed(errors)
+        for pair in self.pairs:
+            pair.on_raw_data_changed(errors, self.globalconfig)
+        return errors
+
+    def _check_list(obj:any, name:str=None, errors:list=None) -> list:
         """Check that the given object is a list, and raise SyncConfig.Error if not"""
         if not isinstance(obj, list):
             if errors is not None:
@@ -221,27 +277,6 @@ class SyncConfig:
             return []
         return obj
     
-    def check_list_and_replace_envars(obj:any, name:str=None, errors:list=None) -> list:
+    def _check_list_and_replace_envars(obj:any, name:str=None, errors:list=None) -> list:
         """Check that the given object is a list, and raise SyncConfig.Error if not"""
-        return [replace_env_variables(x) for x in SyncConfig.check_list(obj, name, errors)]
-
-
-    def get_patterns(config:dict) -> tuple[list,list,str]:
-        """
-        convert include/exclude glob patterns to regex and concatenate them with include/exclude regex.
-        env vars are replaced by their respecting values.
-        :return: (include_patterns list, exclude_patterns list)
-        """
-        exclude_patterns:list = SyncConfig.check_list_and_replace_envars(config.get('exclude_regex', []))
-        include_patterns:list = SyncConfig.check_list_and_replace_envars(config.get('include_regex', []))
-
-        exclude:list = SyncConfig.check_list_and_replace_envars(config.get('exclude', []))
-        include:list = SyncConfig.check_list_and_replace_envars(config.get('include', []))
-        
-        # -> we use include patterns (if any) by converting them to regex
-        if len(include)>0:
-            include_patterns.extend([r'|'.join([fnmatch.translate(x) for x in include])])
-        if len(exclude)>0:
-            exclude_patterns.extend([r'|'.join([fnmatch.translate(x) for x in exclude])])
-
-        return (include_patterns, exclude_patterns)
+        return [replace_env_variables(x) for x in SyncConfig._check_list(obj, name, errors)]

@@ -73,7 +73,8 @@ class SyncData(object):
 
 class DirSyncer:
     def compare_dirs(leftdir:str, rightdir:str, include:list=None, exclude:list=None, compare_file_content:bool=False, ignore_right_only:bool=False, on_warning:callable=None) -> CmpData:
-        """compares two directories and returns a CmpData object containing the results
+        """compares two directories and returns a CmpData object containing the results.
+           In case of failure, only "errors" field will be set in returned CmpData.
         
         :param leftdir: path to the left directory
         :param rightdir: path to the right directory
@@ -98,12 +99,13 @@ class DirSyncer:
         if not exclude: exclude = []
         exclude.append(fnmatch.translate('/'+HISTORY_DIR+'/'))
 
+        errors:set = set()
         exclude_re = []
         for pattern in exclude:
             try:
                 exclude_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                return CmpData(errors=set({(pattern, 'Invalid exclude regex pattern')}))
+                errors.add((pattern, 'Invalid exclude regex pattern'))
 
         if not include: include = []
         include_re = []
@@ -111,8 +113,17 @@ class DirSyncer:
             try:
                 include_re.append(DirSyncer.__compile_regex__(pattern, leftdir))
             except re.error:
-                return CmpData(errors=set({(pattern, "Invalid include regex pattern")}))
-            
+                errors.add((pattern, "Invalid include regex pattern"))
+
+        if not os.path.exists(leftdir):
+            errors.add((leftdir, "left folder does not exist"))
+
+        if not os.path.exists(rightdir):
+            errors.add((rightdir, "right folder does not exist"))
+    
+        if errors:
+            return CmpData(errors=errors)
+    
         explicitly_excluded_dirs:set = set()
         explicitly_included_dirs:set = set()
         for root, dirs, files in os.walk(leftdir):
@@ -208,7 +219,7 @@ class DirSyncer:
 
     
     def sync_dirs(leftdir:str, rightdir:str, cmp_data: CmpData, history_mode_depth:int=0, 
-                  history_mode_file_max_saved_size:int=0, verbose:bool=False, on_sync_file:callable=None, on_warning:callable=None) -> SyncData:
+                  history_mode_file_max_saved_size:int=0, on_sync_file:callable=None, on_warning:callable=None) -> SyncData:
         """synchronizes two directories according to the given CmpData results, and returns sync results as SyncData
         
          :param leftdir: path to the left directory
@@ -216,7 +227,6 @@ class DirSyncer:
          :param cmp_data: CmpData object containing the results of directories comparison, to use to synchronize directories
          :param history_mode_depth: history mode depth to use when synchronizing files, defaults to 0 (no history)
          :param history_mode_file_max_saved_size: history mode file max saved size to use when synchronizing files, defaults to 0 (no limit on file size to save in history)
-         :param verbose: indicates whether to display verbose output, defaults to False
          :param on_sync_file: callback function to call when a file is synchronized,
                              with parameters (action:str, filepath:str, leftdir:str, rightdir:str), where action is 'start_deleting', 'delete', 'start_copying', 'copy', 'start_updating', 'update' or 'save-to-history'
          :param on_warning: callback function to call when a warning is encountered,
