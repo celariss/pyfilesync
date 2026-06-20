@@ -1,3 +1,7 @@
+## 2.3.0 (2026-06-20) :
+- all log calls moved to pyfilesync.py
+- SyncConfig class improved
+
 ## 2.2.0 (2026-04-24) :
 - changed command line processing and order of options (that makes a cleaner help)
 - added `--removed-only` option for `show_history` and `clean_history` commands
