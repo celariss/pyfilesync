@@ -117,12 +117,15 @@ class DirSyncer:
 
         if not os.path.exists(leftdir):
             errors.add((leftdir, "left folder does not exist"))
-
-        if not os.path.exists(rightdir):
-            errors.add((rightdir, "right folder does not exist"))
     
         if errors:
             return CmpData(errors=errors)
+        
+        warnings:set = set()
+        if not os.path.exists(rightdir):
+            warnings.add((rightdir, "right folder does not exist"))
+            if on_warning:
+                on_warning("right folder does not exist")
     
         explicitly_excluded_dirs:set = set()
         explicitly_included_dirs:set = set()
@@ -165,7 +168,7 @@ class DirSyncer:
                     right_files.add(path)
 
         # The following variable will receive the result of folders comparison (see CmpData class)
-        cmpdata:CmpData = CmpData()
+        cmpdata:CmpData = CmpData(warnings=warnings)
 
         # Finding equal and different files
         common_files = left_files.intersection(right_files)
